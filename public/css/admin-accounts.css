@@ -1,0 +1,45 @@
+.badge {
+    font-size: 0.7rem;
+}
+
+.content-card h3 {
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+}
+
+.table th {
+    background: rgba(40, 167, 69, 0.1);
+    color: var(--primary-color);
+    font-weight: 600;
+    border: none;
+}
+
+.action-btn {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    margin-right: 0.25rem;
+    margin-bottom: 0.25rem;
+    border-radius: 0.375rem;
+    text-decoration: none;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+}
+
+.action-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+    background: rgba(40, 167, 69, 0.05);
+    border-radius: 1rem;
+    border: 2px dashed rgba(40, 167, 69, 0.2);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    color: rgba(40, 167, 69, 0.5);
+    margin-bottom: 1rem;
+}

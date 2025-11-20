@@ -1,0 +1,76 @@
+/* Navigation Bar Styles */
+.navbar-tryckasaken {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  padding: 1rem 0;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.navbar-brand {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--color-primary);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.navbar-brand:hover {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.navbar-brand i {
+  font-size: 1.8rem;
+}
+
+.navbar-nav .nav-link {
+  color: var(--color-gray-700);
+  font-weight: 500;
+  margin: 0 12px;
+  transition: color var(--transition-base);
+  position: relative;
+}
+
+.navbar-nav .nav-link:hover {
+  color: var(--color-primary);
+}
+
+.navbar-nav .nav-link::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 2px;
+  background: var(--color-primary);
+  bottom: -5px;
+  left: 0;
+  transition: width var(--transition-base);
+}
+
+.navbar-nav .nav-link:hover::after {
+  width: 100%;
+}
+
+.navbar-nav .nav-link.active {
+  color: var(--color-primary);
+}
+
+.navbar-nav .nav-link.active::after {
+  width: 100%;
+}
+
+@media (max-width: 991.98px) {
+  .navbar-nav .nav-link::after {
+    display: none;
+  }
+  
+  .navbar-collapse {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-gray-200);
+  }
+}

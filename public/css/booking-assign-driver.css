@@ -1,0 +1,133 @@
+body {
+  background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);
+  min-height: 100vh;
+  position: relative;
+}
+
+.glass-navbar {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 1rem 0;
+  margin-bottom: 2rem;
+}
+
+.admin-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 20px 40px;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  padding: 30px;
+  margin-bottom: 24px;
+}
+
+.glass-card h4 {
+  color: white;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  opacity: 0.8;
+  font-weight: 500;
+}
+
+.info-value {
+  font-weight: 600;
+}
+
+.driver-card {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: white;
+}
+
+.driver-card:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-3px);
+}
+
+.driver-card.selected {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: #16a34a;
+  box-shadow: 0 0 20px rgba(76, 175, 80, 0.3);
+}
+
+.driver-card input[type="radio"] {
+  display: none;
+}
+
+.driver-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.driver-name {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.driver-stats {
+  display: flex;
+  gap: 20px;
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.driver-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-badge {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.status-pending {
+  background: rgba(34, 197, 94, 0.3);
+  color: #22c55e;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: white;
+}
+
+.empty-state i {
+  font-size: 4rem;
+  opacity: 0.5;
+  margin-bottom: 20px;
+}

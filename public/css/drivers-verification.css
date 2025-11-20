@@ -1,0 +1,232 @@
+.verification-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--primary-color);
+    border-radius: 0.5rem;
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+.tab-btn:hover, .tab-btn.active {
+    background: var(--primary-color);
+    color: white;
+}
+
+.driver-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(40, 167, 69, 0.2);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.driver-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 20px rgba(40, 167, 69, 0.1);
+}
+
+.driver-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(40, 167, 69, 0.2);
+}
+
+.verification-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.verification-pending {
+    background: rgba(255, 193, 7, 0.2);
+    color: #ffc107;
+    border: 1px solid #ffc107;
+}
+
+.verification-verified {
+    background: rgba(40, 167, 69, 0.2);
+    color: #28a745;
+    border: 1px solid #28a745;
+}
+
+.verification-rejected {
+    background: rgba(220, 53, 69, 0.2);
+    color: #dc3545;
+    border: 1px solid #dc3545;
+}
+
+.driver-info {
+    margin-bottom: 1rem;
+}
+
+.info-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.info-item i {
+    color: var(--primary-color);
+    width: 1rem;
+}
+
+.driver-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.documents-preview {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: rgba(22, 163, 74, 0.05);
+    border-radius: 0.5rem;
+    border: 1px solid rgba(22, 163, 74, 0.2);
+}
+
+.documents-preview h6 {
+    color: var(--primary-color);
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.documents-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 0.75rem;
+}
+
+.document-item {
+    text-align: center;
+}
+
+.document-thumbnail {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 2px solid rgba(22, 163, 74, 0.2);
+}
+
+.document-thumbnail:hover {
+    transform: scale(1.05);
+    border-color: var(--primary-color);
+}
+
+.pdf-thumb {
+    width: 60px;
+    height: 60px;
+    background: #dc3545;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 2px solid rgba(220, 53, 69, 0.2);
+    font-size: 1.5rem;
+}
+
+.pdf-thumb:hover {
+    transform: scale(1.05);
+    background: #c82333;
+}
+
+.document-item small {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.7rem;
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+/* Enhanced Modal Styles */
+#documentModal .modal-xl {
+    max-width: 95%;
+}
+
+#documentModal .modal-content {
+    border: none;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+/* Make backdrop clickable */
+.modal-backdrop {
+    cursor: pointer;
+}
+
+/* Ensure modal dialog and buttons are clickable */
+#documentModal .modal-dialog,
+#documentModal .modal-content,
+#documentModal button,
+#documentModal .btn {
+    pointer-events: auto !important;
+    cursor: pointer;
+}
+
+#documentModal .modal-content {
+    border: none;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+#documentModal .modal-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 1rem 1.5rem;
+}
+
+#documentModal .modal-body {
+    padding: 0;
+    background: #f8f9fa;
+}
+
+#documentModal .modal-footer {
+    border-top: 1px solid #dee2e6;
+    padding: 0.75rem 1.5rem;
+}
+
+#documentContent {
+    position: relative;
+    background: white;
+}
+
+#documentContent embed,
+#documentContent iframe {
+    width: 100%;
+    height: 600px;
+    border: none;
+}
+
+.document-loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+}
