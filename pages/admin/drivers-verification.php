@@ -7,14 +7,14 @@ $db = new Database();
 $conn = $db->getConnection();
 
 // Debug: Check if we have drivers in the database
-$debugQuery = "SELECT COUNT(*) as total_drivers FROM drivers";
+$debugQuery = "SELECT COUNT(*) as total FROM rfid_drivers";
 $debugResult = $conn->query($debugQuery);
 $totalDrivers = $debugResult ? $debugResult->fetch_assoc()['total'] : 0;
 
 // Debug: Check pending drivers
-$debugPendingQuery = "SELECT COUNT(*) as pending_drivers FROM drivers WHERE verification_status = 'pending' OR verification_status IS NULL";
+$debugPendingQuery = "SELECT COUNT(*) as total FROM rfid_drivers WHERE verification_status = 'pending' OR verification_status IS NULL";
 $debugPendingResult = $conn->query($debugPendingQuery);
-$pendingDrivers = $debugPendingResult ? $debugPendingResult->fetch_assoc()['pending_drivers'] : 0;
+$pendingDrivers = $debugPendingResult ? $debugPendingResult->fetch_assoc()['total'] : 0;
 
 // Handle verification actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -25,79 +25,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     error_log("Driver verification action: $action for driver ID: $driverId");
     
     if ($action === 'verify') {
-        // First check if the driver exists in drivers table
-        $checkStmt = $conn->prepare("SELECT COUNT(*) as count FROM drivers WHERE user_id = ?");
+        // First check if the driver exists in rfid_drivers table
+        $checkStmt = $conn->prepare("SELECT COUNT(*) as count FROM rfid_drivers WHERE driver_id = ?");
         $checkStmt->bind_param("i", $driverId);
         $checkStmt->execute();
         $driverExists = $checkStmt->get_result()->fetch_assoc()['count'] > 0;
         $checkStmt->close();
         
         if (!$driverExists) {
-            $error = "Driver record not found in drivers table. Please ensure the driver has submitted their documents.";
+            $error = "Driver record not found in rfid_drivers table. Please ensure the driver has submitted their documents.";
         } else {
-            // Update both users and drivers tables for verification
+            // Update rfid_drivers table for verification
             $conn->begin_transaction();
             
             try {
-                // Update users table
-                $stmt1 = $conn->prepare("UPDATE users SET is_verified = 1, verification_status = 'verified' WHERE user_id = ? AND user_type = 'driver'");
-                $stmt1->bind_param("i", $driverId);
-                $result1 = $stmt1->execute();
-                $affected1 = $stmt1->affected_rows;
+                // Update rfid_drivers table
+                $stmt = $conn->prepare("UPDATE rfid_drivers SET verification_status = 'verified' WHERE driver_id = ?");
+                $stmt->bind_param("i", $driverId);
+                $result = $stmt->execute();
+                $affected = $stmt->affected_rows;
                 
-                // Update drivers table
-                $stmt2 = $conn->prepare("UPDATE drivers SET verification_status = 'verified' WHERE user_id = ?");
-                $stmt2->bind_param("i", $driverId);
-                $result2 = $stmt2->execute();
-                $affected2 = $stmt2->affected_rows;
-                
-                if ($result1 && $result2 && ($affected1 > 0 || $affected2 > 0)) {
+                if ($result && $affected > 0) {
                     $conn->commit();
-                    $success = "Driver verified successfully! Updated " . ($affected1 + $affected2) . " record(s).";
+                    $success = "Driver verified successfully! Updated " . $affected . " record(s).";
                     
                     // Redirect to refresh the page and show updated data - always go to pending tab
                     header("Location: drivers-verification.php?filter=pending&success=" . urlencode($success));
                     exit();
                 } else {
                     $conn->rollback();
-                    $error = "No records were updated. Driver may already be verified or user ID not found.";
+                    $error = "No records were updated. Driver may already be verified or driver ID not found.";
                 }
                 
-                $stmt1->close();
-                $stmt2->close();
+                $stmt->close();
             } catch (Exception $e) {
                 $conn->rollback();
                 $error = "Failed to verify driver: " . $e->getMessage();
             }
         }
     } elseif ($action === 'reject') {
-        // First check if the driver exists in drivers table
-        $checkStmt = $conn->prepare("SELECT COUNT(*) as count FROM drivers WHERE user_id = ?");
+        // First check if the driver exists in rfid_drivers table
+        $checkStmt = $conn->prepare("SELECT COUNT(*) as count FROM rfid_drivers WHERE driver_id = ?");
         $checkStmt->bind_param("i", $driverId);
         $checkStmt->execute();
         $driverExists = $checkStmt->get_result()->fetch_assoc()['count'] > 0;
         $checkStmt->close();
         
         if (!$driverExists) {
-            $error = "Driver record not found in drivers table.";
+            $error = "Driver record not found in rfid_drivers table.";
         } else {
-            // Update both users and drivers tables for rejection
+            // Update rfid_drivers table for rejection
             $conn->begin_transaction();
             
             try {
-                // Update users table
-                $stmt1 = $conn->prepare("UPDATE users SET verification_status = 'rejected' WHERE user_id = ? AND user_type = 'driver'");
-                $stmt1->bind_param("i", $driverId);
-                $result1 = $stmt1->execute();
-                $affected1 = $stmt1->affected_rows;
+                // Update rfid_drivers table
+                $stmt = $conn->prepare("UPDATE rfid_drivers SET verification_status = 'rejected' WHERE driver_id = ?");
+                $stmt->bind_param("i", $driverId);
+                $result = $stmt->execute();
+                $affected = $stmt->affected_rows;
                 
-                // Update drivers table
-                $stmt2 = $conn->prepare("UPDATE drivers SET verification_status = 'rejected' WHERE user_id = ?");
-                $stmt2->bind_param("i", $driverId);
-                $result2 = $stmt2->execute();
-                $affected2 = $stmt2->affected_rows;
-                
-                if ($result1 && $result2 && ($affected1 > 0 || $affected2 > 0)) {
+                if ($result && $affected > 0) {
                     $conn->commit();
                     $success = "Driver application rejected successfully!";
                     
@@ -106,11 +93,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     exit();
                 } else {
                     $conn->rollback();
-                    $error = "No records were updated. Driver may already be processed or user ID not found.";
+                    $error = "No records were updated. Driver may already be processed or driver ID not found.";
                 }
                 
-                $stmt1->close();
-                $stmt2->close();
+                $stmt->close();
             } catch (Exception $e) {
                 $conn->rollback();
                 $error = "Failed to reject driver: " . $e->getMessage();
@@ -146,11 +132,11 @@ switch($filter) {
         break;
 }
 
-$query = "SELECT u.user_id, u.name, u.email, u.phone, u.license_number, u.tricycle_info, u.created_at, 
-                 u.is_verified, d.verification_status, u.is_active,
+$query = "SELECT u.user_id, u.name, u.email, u.phone, d.license_number, d.tricycle_info, u.created_at, 
+                 u.is_verified, d.verification_status, u.is_active, d.driver_id,
                  d.or_cr_path, d.license_path, d.picture_path
-          FROM users u 
-          LEFT JOIN drivers d ON u.user_id = d.user_id
+          FROM rfid_drivers d 
+          INNER JOIN users u ON d.user_id = u.user_id
           WHERE $whereClause 
           ORDER BY u.created_at DESC";
 
@@ -295,14 +281,14 @@ renderAdminHeader("Driver Verification", "driver_verification");
                         <?php endif; ?>
                         
                         <?php if (($driver['verification_status'] ?: 'pending') === 'pending'): ?>
-                            <div class="driver-actions" id="driver-actions-<?= $driver['user_id'] ?>">
+                            <div class="driver-actions" id="driver-actions-<?= $driver['driver_id'] ?>">
                                 <button type="button" class="btn btn-success btn-sm" 
-                                        onclick="verifyDriver(<?= $driver['user_id'] ?>, this)">
+                                        onclick="verifyDriver(<?= $driver['driver_id'] ?>, this)">
                                     <i class="bi bi-check-circle"></i> Verify
                                 </button>
                                 
                                 <button type="button" class="btn btn-danger btn-sm" 
-                                        onclick="rejectDriver(<?= $driver['user_id'] ?>, this)">
+                                        onclick="rejectDriver(<?= $driver['driver_id'] ?>, this)">
                                     <i class="bi bi-x-circle"></i> Reject
                                 </button>
                             </div>

@@ -86,7 +86,7 @@ body {
   font-size: 16px;
   line-height: 1.5;
   color: var(--color-gray-700);
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 50%, #ffffff 100%);
+  background: #ffffff;
   min-height: 100vh;
   position: relative;
 }
@@ -98,8 +98,7 @@ body::before {
   left: 0;
   right: 0;
   bottom: 0;
-  background: radial-gradient(circle at 20% 50%, rgba(16, 185, 129, 0.1) 0%, transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 50%);
+  background: none;
   pointer-events: none;
   z-index: 0;
 }
@@ -138,14 +137,14 @@ a:hover {
    ======================================== */
 
 .navbar {
-  background: var(--glass-bg);
+  background: #f0fdf4;
   backdrop-filter: var(--blur-lg);
-  border-bottom: 1px solid var(--glass-border);
+  border-bottom: none;
   position: sticky;
   top: 0;
   z-index: 1000;
   padding: 16px 0;
-  box-shadow: var(--shadow-md);
+  box-shadow: none;
 }
 
 .navbar-brand {

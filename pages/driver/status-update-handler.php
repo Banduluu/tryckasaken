@@ -15,7 +15,7 @@ $conn = $database->getConnection();
 $user_id = $_SESSION['user_id'];
 
 // Check driver verification status
-$verification_query = "SELECT verification_status FROM drivers WHERE user_id = ?";
+$verification_query = "SELECT verification_status FROM rfid_drivers WHERE user_id = ?";
 $stmt = $conn->prepare($verification_query);
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
@@ -54,7 +54,7 @@ if ($has_active_trip) {
 }
 
 // Get current status
-$status_query = "SELECT is_online FROM drivers WHERE user_id = ?";
+$status_query = "SELECT is_online FROM rfid_drivers WHERE user_id = ?";
 $stmt = $conn->prepare($status_query);
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
@@ -66,7 +66,7 @@ $stmt->close();
 $new_status = $current_status ? 0 : 1;
 
 // Update status
-$update_query = "UPDATE drivers SET is_online = ? WHERE user_id = ?";
+$update_query = "UPDATE rfid_drivers SET is_online = ? WHERE user_id = ?";
 $stmt = $conn->prepare($update_query);
 $stmt->bind_param("ii", $new_status, $user_id);
 

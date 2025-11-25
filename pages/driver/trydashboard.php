@@ -10,8 +10,22 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] != 'driver') {
     exit();
 }
 
-$driver_id = $_SESSION['user_id'];
+$user_id = $_SESSION['user_id'];
 $driver_name = $_SESSION['name'];
+
+// Get the actual driver_id from rfid_drivers table
+$driver_query = $conn->prepare("SELECT driver_id FROM rfid_drivers WHERE user_id = ?");
+$driver_query->bind_param("i", $user_id);
+$driver_query->execute();
+$driver_result = $driver_query->get_result()->fetch_assoc();
+$driver_query->close();
+
+if ($driver_result) {
+    $driver_id = $driver_result['driver_id'];
+} else {
+    // If no driver record, use user_id as driver_id
+    $driver_id = $user_id;
+}
 
 // Lipa City, Batangas boundaries (same as passenger dashboard)
 $LIPA_CENTER_LAT = 13.941876;
@@ -22,8 +36,8 @@ $LIPA_RADIUS_KM = 8;
 if (isset($_POST['accept_booking'])) {
     $booking_id = intval($_POST['booking_id']);
     
-    // Check if driver already has an active booking (accepted but not completed)
-    $active_check = $conn->prepare("SELECT COUNT(*) as active_count FROM tricycle_bookings WHERE driver_id = ? AND LOWER(status) = 'accepted'");
+    // Check if driver already has an active booking (accepted or in-transit)
+    $active_check = $conn->prepare("SELECT COUNT(*) as active_count FROM tricycle_bookings WHERE driver_id = ? AND (LOWER(status) = 'accepted' OR LOWER(status) = 'in-transit')");
     $active_check->bind_param("i", $driver_id);
     $active_check->execute();
     $active_result = $active_check->get_result()->fetch_assoc();
@@ -58,8 +72,8 @@ if (isset($_POST['accept_booking'])) {
     exit();
 }
 
-// Handle complete booking
-if (isset($_POST['complete_booking'])) {
+// Handle pick up booking (change status from accepted to in-transit)
+if (isset($_POST['pickup_booking'])) {
     $booking_id = intval($_POST['booking_id']);
     
     // Check if booking exists and is accepted by this driver
@@ -70,6 +84,35 @@ if (isset($_POST['complete_booking'])) {
     $check_stmt->close();
     
     if ($booking && strtolower($booking['status']) === 'accepted' && $booking['driver_id'] == $driver_id) {
+        // Update booking to in-transit
+        $update_stmt = $conn->prepare("UPDATE tricycle_bookings SET status = 'in-transit' WHERE id = ?");
+        $update_stmt->bind_param("i", $booking_id);
+        if ($update_stmt->execute()) {
+            $_SESSION['success_message'] = "Picked up passenger! Heading to destination.";
+        } else {
+            $_SESSION['error_message'] = "Failed to update trip status.";
+        }
+        $update_stmt->close();
+    } else {
+        $_SESSION['error_message'] = "Booking is no longer available or you are not assigned to this ride.";
+    }
+    
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit();
+}
+
+// Handle complete booking
+if (isset($_POST['complete_booking'])) {
+    $booking_id = intval($_POST['booking_id']);
+    
+    // Check if booking exists and is in-transit by this driver
+    $check_stmt = $conn->prepare("SELECT status, driver_id FROM tricycle_bookings WHERE id = ?");
+    $check_stmt->bind_param("i", $booking_id);
+    $check_stmt->execute();
+    $booking = $check_stmt->get_result()->fetch_assoc();
+    $check_stmt->close();
+    
+    if ($booking && (strtolower($booking['status']) === 'in-transit' || strtolower($booking['status']) === 'accepted') && $booking['driver_id'] == $driver_id) {
         // Update booking to completed
         $update_stmt = $conn->prepare("UPDATE tricycle_bookings SET status = 'completed' WHERE id = ?");
         $update_stmt->bind_param("i", $booking_id);
@@ -87,14 +130,14 @@ if (isset($_POST['complete_booking'])) {
     exit();
 }
 
-// Get active bookings for this driver (accepted trips)
+// Get active bookings for this driver (accepted and in-transit trips)
 $bookings_query = "SELECT tb.*, 
                    u.name as passenger_name, 
                    u.phone as passenger_phone
                    FROM tricycle_bookings tb
                    LEFT JOIN users u ON tb.user_id = u.user_id
                    WHERE tb.driver_id = ? 
-                   AND LOWER(tb.status) = 'accepted'
+                   AND (LOWER(tb.status) = 'accepted' OR LOWER(tb.status) = 'in-transit')
                    ORDER BY tb.booking_time DESC";
 $stmt = $conn->prepare($bookings_query);
 $stmt->bind_param("i", $driver_id);
@@ -162,13 +205,13 @@ $pending_bookings = $pending_result->fetch_all(MYSQLI_ASSOC);
 <div class="container-fluid py-4">
   <!-- Messages -->
   <?php if (isset($_SESSION['success_message'])): ?>
-    <div style="background: rgba(102, 126, 234, 0.95); border: 2px solid #667eea; color: white; padding: 16px; border-radius: 12px; margin-bottom: 24px; font-weight: 600; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);">
+    <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 16px; border-radius: 12px; margin-bottom: 24px; font-weight: 600; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);">
       <i class="bi bi-check-circle-fill"></i> <?= $_SESSION['success_message']; unset($_SESSION['success_message']); ?>
     </div>
   <?php endif; ?>
 
   <?php if (isset($_SESSION['error_message'])): ?>
-    <div style="background: rgba(220, 38, 38, 0.95); border: 2px solid #dc2626; color: white; padding: 16px; border-radius: 12px; margin-bottom: 24px; font-weight: 600; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);">
+    <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 16px; border-radius: 12px; margin-bottom: 24px; font-weight: 600; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);">
       <i class="bi bi-exclamation-triangle-fill"></i> <?= $_SESSION['error_message']; unset($_SESSION['error_message']); ?>
     </div>
   <?php endif; ?>
@@ -242,14 +285,20 @@ $pending_bookings = $pending_result->fetch_all(MYSQLI_ASSOC);
             </div>
 
             <span class="status-badge status-accepted">
-              <i class="bi bi-check-circle"></i> Accepted
+              <i class="bi bi-check-circle"></i> <?= strtolower($booking['status']) === 'in-transit' ? 'In Transit' : 'Accepted' ?>
             </span>
 
             <form method="POST" style="margin-top: 12px; display: flex; gap: 8px;">
               <input type="hidden" name="booking_id" value="<?= htmlspecialchars($booking['id']); ?>">
-              <button type="submit" name="complete_booking" class="btn btn-sm btn-success flex-grow-1" style="background: linear-gradient(135deg, #10b981, #047857); border: none; color: white; font-weight: 600;">
-                <i class="bi bi-check2-circle"></i> Complete Ride
-              </button>
+              <?php if (strtolower($booking['status']) === 'accepted'): ?>
+                <button type="submit" name="pickup_booking" class="btn btn-sm btn-info flex-grow-1" style="background: linear-gradient(135deg, #3b82f6, #1e40af); border: none; color: white; font-weight: 600;">
+                  <i class="bi bi-geo-alt-fill"></i> Pick Up Passenger
+                </button>
+              <?php elseif (strtolower($booking['status']) === 'in-transit'): ?>
+                <button type="submit" name="complete_booking" class="btn btn-sm btn-success flex-grow-1" style="background: linear-gradient(135deg, #10b981, #047857); border: none; color: white; font-weight: 600;">
+                  <i class="bi bi-check2-circle"></i> Complete Ride
+                </button>
+              <?php endif; ?>
             </form>
           </div>
         <?php endforeach; ?>
@@ -289,7 +338,7 @@ $pending_bookings = $pending_result->fetch_all(MYSQLI_ASSOC);
         Pending Bookings (<?= count($pending_bookings) ?>)
       </div>
       <?php if ($has_active_booking): ?>
-        <div style="background: rgba(255, 193, 7, 0.95); border: 2px solid #ffc107; color: #856404; padding: 16px; border-radius: 12px; margin-bottom: 16px; font-weight: 600; box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);">
+        <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 16px; border-radius: 12px; margin-bottom: 16px; font-weight: 600; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);">
           <i class="bi bi-exclamation-circle-fill"></i> You have an active booking. Please complete it before accepting a new one.
         </div>
       <?php endif; ?>
@@ -573,10 +622,10 @@ $pending_bookings = $pending_result->fetch_all(MYSQLI_ASSOC);
     }
   });
 
-  // Auto-refresh every 30 seconds
-  setInterval(function() {
+  // Auto-refresh once
+  setTimeout(function() {
     location.reload();
-  }, 30000);
+  }, 300000);
 </script>
 
 </body>

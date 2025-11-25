@@ -1,0 +1,303 @@
+/* RFID Error Monitor Styles */
+:root {
+    --primary: #667eea;
+    --secondary: #764ba2;
+    --danger: #dc3545;
+    --warning: #ffc107;
+    --success: #10b981;
+    --light: #f8f9fa;
+    --dark: #2d3436;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Gradient background */
+body {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+    min-height: 100vh;
+}
+
+/* Header */
+.navbar-custom {
+    background: white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 1rem 0;
+    margin-bottom: 2rem;
+}
+
+.navbar-brand-custom {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Stats Cards */
+.stats-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    margin-bottom: 1.5rem;
+    border-left: 4px solid var(--primary);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stats-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.stats-card.warning {
+    border-left-color: var(--warning);
+}
+
+.stats-card.danger {
+    border-left-color: var(--danger);
+}
+
+.stats-card.success {
+    border-left-color: var(--success);
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.stat-label {
+    color: #6c757d;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+}
+
+/* Filter Section */
+.filter-section {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.form-label {
+    font-weight: 600;
+    color: #2d3436;
+    margin-bottom: 0.5rem;
+}
+
+.form-select {
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+}
+
+.form-select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+}
+
+/* Error Table */
+.error-table {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.error-table table {
+    margin: 0;
+}
+
+.error-table thead {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+    color: white;
+    font-weight: 600;
+}
+
+.error-table tbody tr {
+    border-bottom: 1px solid #e9ecef;
+    transition: background-color 0.2s;
+}
+
+.error-table tbody tr:hover {
+    background-color: var(--light);
+}
+
+/* Badges */
+.badge-error {
+    background: var(--danger);
+    color: white;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.badge-warning {
+    background: var(--warning);
+    color: #333;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.badge-success {
+    background: var(--success);
+    color: white;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+/* UID Cell */
+.uid-cell {
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.timestamp-cell {
+    font-size: 0.9rem;
+    color: #6c757d;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: #6c757d;
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+/* Buttons */
+.btn-custom {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+    border: none;
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-weight: 600;
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+}
+
+.btn-custom:hover {
+    transform: translateY(-2px);
+    color: white;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    text-decoration: none;
+}
+
+.btn-sm-custom {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.8rem;
+}
+
+/* Info Box */
+.info-box {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border-left: 4px solid var(--primary);
+}
+
+.info-box h6 {
+    color: var(--primary);
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .stat-number {
+        font-size: 1.5rem;
+    }
+
+    .stats-card {
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .filter-section {
+        padding: 1rem;
+    }
+
+    .error-table table {
+        font-size: 0.85rem;
+    }
+
+    .error-table th, .error-table td {
+        padding: 0.5rem !important;
+    }
+}
+
+/* Animations */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.stats-card,
+.filter-section,
+.error-table {
+    animation: slideIn 0.3s ease-out;
+}
+
+/* Status indicators */
+.status-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 0.5rem;
+}
+
+.status-indicator.active {
+    background: var(--success);
+    animation: pulse 2s infinite;
+}
+
+.status-indicator.error {
+    background: var(--danger);
+}
+
+.status-indicator.warning {
+    background: var(--warning);
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}

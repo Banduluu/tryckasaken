@@ -14,7 +14,7 @@ $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['name'];
 
 // Check driver verification status and online status
-$verification_query = "SELECT verification_status, is_online FROM drivers WHERE user_id = ?";
+$verification_query = "SELECT verification_status, is_online FROM rfid_drivers WHERE user_id = ?";
 $stmt = $conn->prepare($verification_query);
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
@@ -34,7 +34,7 @@ if ($verification_status === 'verified') {
 // Get driver profile information
 $driver_profile_query = "SELECT u.name, u.email, u.phone, d.picture_path, d.verification_status 
                          FROM users u 
-                         LEFT JOIN drivers d ON u.user_id = d.user_id 
+                         LEFT JOIN rfid_drivers d ON u.user_id = d.user_id 
                          WHERE u.user_id = ?";
 $stmt = $conn->prepare($driver_profile_query);
 $stmt->bind_param("i", $user_id);
@@ -153,6 +153,11 @@ $conn->close();
             <i class="bi bi-clock-history"></i> Trip History
           </a>
         <?php endif; ?>
+      </li>
+      <li class="nav-item">
+        <a href="report.php" class="nav-link">
+          <i class="bi bi-flag"></i> Report
+        </a>
       </li>
       <li class="nav-item">
         <a href="../../pages/auth/logout-handler.php" class="btn btn-danger btn-sm">
@@ -460,6 +465,184 @@ function showStatusMessage(message, type) {
       toast.remove();
     }
   }, 5000);
+}
+</script>
+
+<div class="attendance-section mt-4">
+  <div class="glass-card">
+    <h3 class="mb-3">
+      <i class="bi bi-clock-history"></i> Recent Attendance
+    </h3>
+    
+    <div id="attendanceRecords">
+      <div class="text-center py-4">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.attendance-section {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 15px;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.attendance-record {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  margin-bottom: 12px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 12px;
+  border-left: 4px solid;
+  transition: all 0.3s ease;
+}
+
+.attendance-record:hover {
+  transform: translateX(4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.attendance-record.clock-in {
+  border-left-color: #10b981;
+}
+
+.attendance-record.clock-out {
+  border-left-color: #ef4444;
+}
+
+.attendance-info {
+  flex: 1;
+}
+
+.attendance-time {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.attendance-badge {
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.badge-clock-in {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+
+.badge-clock-out {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.no-records {
+  text-align: center;
+  padding: 40px 20px;
+  color: #9ca3af;
+}
+</style>
+
+<script>
+// Fetch attendance records
+function loadAttendanceRecords() {
+  const driverId = <?= $user_id ?>; // From PHP session
+  
+  fetch(`../../pages/driver/rfid-attendance-handler.php?driver_id=${driverId}&limit=5`)
+    .then(response => response.json())
+    .then(data => {
+      const container = document.getElementById('attendanceRecords');
+      
+      if (data.success && data.records.length > 0) {
+        let html = '';
+        
+        data.records.forEach(record => {
+          const action = record.action;
+          const actionClass = action === 'online' ? 'clock-in' : 'clock-out';
+          const badgeClass = action === 'online' ? 'badge-clock-in' : 'badge-clock-out';
+          const actionText = action === 'online' ? 'Clocked In' : 'Clocked Out';
+          const icon = action === 'online' ? 'bi-box-arrow-in-right' : 'bi-box-arrow-right';
+          
+          const date = new Date(record.timestamp);
+          const formattedTime = date.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+          });
+          
+          html += `
+            <div class="attendance-record ${actionClass}">
+              <div class="attendance-info">
+                <div class="d-flex align-items-center">
+                  <i class="bi ${icon} me-2" style="font-size: 1.5rem;"></i>
+                  <div>
+                    <strong>${record.driver_name}</strong>
+                    <div class="attendance-time">${formattedTime}</div>
+                  </div>
+                </div>
+              </div>
+              <span class="attendance-badge ${badgeClass}">${actionText}</span>
+            </div>
+          `;
+        });
+        
+        container.innerHTML = html;
+      } else {
+        container.innerHTML = `
+          <div class="no-records">
+            <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
+            <p class="mt-3">No attendance records yet</p>
+            <small>Tap your RFID card to clock in/out</small>
+          </div>
+        `;
+      }
+    })
+    .catch(error => {
+      console.error('Error loading attendance:', error);
+      document.getElementById('attendanceRecords').innerHTML = `
+        <div class="alert alert-danger">
+          <i class="bi bi-exclamation-triangle"></i> Failed to load attendance records
+        </div>
+      `;
+    });
+}
+
+// Auto-refresh attendance - check every 5 seconds for new records
+let attendanceRefreshInterval = setInterval(loadAttendanceRecords, 5000);
+
+// Load on page load
+document.addEventListener('DOMContentLoaded', loadAttendanceRecords);
+
+// Refresh attendance when page becomes visible (user switches back to tab)
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    loadAttendanceRecords();
+  }
+});
+
+// Real-time notification when RFID is tapped (optional - requires WebSocket or polling)
+function checkNewAttendance() {
+  // This can be enhanced with WebSocket for real-time updates
+  loadAttendanceRecords();
 }
 </script>
 

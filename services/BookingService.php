@@ -1,9 +1,4 @@
 <?php
-/**
- * Booking Service - Handles passenger booking operations
- * Separates business logic from API endpoints
- */
-
 class BookingService {
     private $conn;
     private $user_id;
@@ -20,9 +15,10 @@ class BookingService {
         $booking_query = "SELECT b.*, 
                           u.name as driver_name, 
                           u.phone as driver_phone,
-                          u.tricycle_info as vehicle_info
+                          d.tricycle_info as vehicle_info
                           FROM tricycle_bookings b
-                          LEFT JOIN users u ON b.driver_id = u.user_id
+                          LEFT JOIN rfid_drivers d ON b.driver_id = d.driver_id
+                          LEFT JOIN users u ON d.user_id = u.user_id
                           WHERE b.user_id = ? 
                           AND LOWER(b.status) NOT IN ('completed', 'cancelled', 'declined')
                           ORDER BY b.booking_time DESC 

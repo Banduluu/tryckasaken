@@ -13,6 +13,55 @@ $conn = $database->getConnection();
 $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['name'];
 
+// Function to convert coordinates to location name using reverse geocoding
+function getLocationFromCoordinates($lat, $lng) {
+    try {
+        // Use Nominatim (OpenStreetMap) for reverse geocoding
+        $url = "https://nominatim.openstreetmap.org/reverse?format=json&lat={$lat}&lon={$lng}";
+        
+        $context = stream_context_create([
+            'http' => [
+                'timeout' => 5,
+                'user_agent' => 'TrycKaSaken/1.0'
+            ]
+        ]);
+        
+        $response = @file_get_contents($url, false, $context);
+        if ($response === false) {
+            return "Lat: {$lat}, Lng: {$lng}";
+        }
+        
+        $data = json_decode($response, true);
+        if ($data && isset($data['address'])) {
+            $address = $data['address'];
+            
+            // Build location string from address components
+            $locationParts = [];
+            
+            if (isset($address['road'])) {
+                $locationParts[] = $address['road'];
+            }
+            if (isset($address['village'])) {
+                $locationParts[] = $address['village'];
+            }
+            if (isset($address['suburb'])) {
+                $locationParts[] = $address['suburb'];
+            }
+            if (isset($address['city'])) {
+                $locationParts[] = $address['city'];
+            }
+            
+            if (!empty($locationParts)) {
+                return implode(', ', $locationParts);
+            }
+        }
+        
+        return "Lat: {$lat}, Lng: {$lng}";
+    } catch (Exception $e) {
+        return "Lat: {$lat}, Lng: {$lng}";
+    }
+}
+
 // Fetch ALL the user's bookings
 $stmt = $conn->prepare("SELECT * FROM tricycle_bookings WHERE user_id = ? ORDER BY booking_time DESC");
 $stmt->bind_param("i", $user_id);
@@ -157,7 +206,11 @@ $stmt->close();
             <i class="bi bi-pin-map-fill" style="color: #10b981;"></i>
             <div>
               <div class="detail-label">Pickup Location</div>
-              <div class="detail-value"><?php echo htmlspecialchars($booking['location']); ?></div>
+              <div class="detail-value"><?php echo htmlspecialchars(
+                (!empty($booking['pickup_lat']) && !empty($booking['pickup_lng'])) 
+                  ? getLocationFromCoordinates($booking['pickup_lat'], $booking['pickup_lng'])
+                  : $booking['location']
+              ); ?></div>
             </div>
           </div>
           
@@ -165,7 +218,11 @@ $stmt->close();
             <i class="bi bi-geo-fill" style="color: #ef4444;"></i>
             <div>
               <div class="detail-label">Dropoff Location</div>
-              <div class="detail-value"><?php echo htmlspecialchars($booking['destination']); ?></div>
+              <div class="detail-value"><?php echo htmlspecialchars(
+                (!empty($booking['dest_lat']) && !empty($booking['dest_lng'])) 
+                  ? getLocationFromCoordinates($booking['dest_lat'], $booking['dest_lng'])
+                  : $booking['destination']
+              ); ?></div>
             </div>
           </div>
         </div>

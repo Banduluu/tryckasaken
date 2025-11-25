@@ -30,7 +30,7 @@ if (!$user) {
 // Get driver information if user is a driver
 $driverInfo = null;
 if ($user['user_type'] === 'driver') {
-    $stmt = $conn->prepare("SELECT * FROM drivers WHERE user_id = ?");
+    $stmt = $conn->prepare("SELECT * FROM rfid_drivers WHERE user_id = ?");
     $stmt->bind_param("i", $userId);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -214,6 +214,14 @@ renderAdminHeader("View User - " . htmlspecialchars($user['name']), "users");
                 <?= ucfirst($driverInfo['verification_status']) ?>
               </span>
             </span>
+          </div>
+          <div class="info-item">
+            <span class="info-label"><i class="bi bi-card-text"></i> License Number</span>
+            <span class="info-value"><?= htmlspecialchars($driverInfo['license_number']) ?></span>
+          </div>
+          <div class="info-item">
+            <span class="info-label"><i class="bi bi-car-front"></i> Tricycle Information</span>
+            <span class="info-value"><?= htmlspecialchars($driverInfo['tricycle_info']) ?></span>
           </div>
         </div>
         

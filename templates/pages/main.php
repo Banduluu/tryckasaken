@@ -28,7 +28,7 @@
     <nav class="navbar navbar-expand-lg navbar-tryckasaken">
         <div class="container-fluid">
             <a class="navbar-brand" href="index.php">
-                <i class="bi bi-truck"></i> TrycKaSaken
+                 TrycKaSaken
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
@@ -36,19 +36,19 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link" aria-current="page" href="index.php">Home</a>
+                        <a class="nav-link" href="#home" onclick="smoothScroll(event)">Home</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="index.php?page=about">About</a>
+                        <a class="nav-link" href="#about" onclick="smoothScroll(event)">About</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="index.php?page=services">Services</a>
+                        <a class="nav-link" href="#services" onclick="smoothScroll(event)">Services</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="index.php?page=team">Team</a>
+                        <a class="nav-link" href="#team" onclick="smoothScroll(event)">Team</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="index.php?page=contact">Contact Us</a>
+                        <a class="nav-link" href="#contact" onclick="smoothScroll(event)">Contact</a>
                     </li>
                 </ul>
             </div>
@@ -73,5 +73,50 @@
     <?php if (isset($inlineScripts)): ?>
         <script><?= $inlineScripts ?></script>
     <?php endif; ?>
+
+    <script>
+        function smoothScroll(e) {
+            e.preventDefault();
+            const href = e.currentTarget.getAttribute('href');
+            
+            if (href.startsWith('#')) {
+                const target = document.querySelector(href);
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                    
+                    // Close mobile menu if open
+                    const navbarCollapse = document.querySelector('.navbar-collapse');
+                    if (navbarCollapse.classList.contains('show')) {
+                        const toggle = document.querySelector('.navbar-toggler');
+                        toggle.click();
+                    }
+                }
+            }
+        }
+
+        // Add active class to navbar links on scroll
+        window.addEventListener('scroll', function() {
+            let current = '';
+            const sections = document.querySelectorAll('section[id]');
+            
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                const sectionHeight = section.clientHeight;
+                if (pageYOffset >= (sectionTop - 200)) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            document.querySelectorAll('.navbar-nav .nav-link').forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === '#' + current) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
 </body>
 </html>

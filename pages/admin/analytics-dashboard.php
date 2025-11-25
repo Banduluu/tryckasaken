@@ -13,7 +13,7 @@ $stats = [];
 $result = $conn->query("SELECT COUNT(*) as total FROM users WHERE user_type = 'passenger'");
 $stats['total_passengers'] = $result->fetch_assoc()['total'];
 
-$result = $conn->query("SELECT COUNT(*) as total FROM users WHERE user_type = 'driver'");
+$result = $conn->query("SELECT COUNT(*) as total FROM rfid_drivers");
 $stats['total_drivers'] = $result->fetch_assoc()['total'];
 
 // Total bookings

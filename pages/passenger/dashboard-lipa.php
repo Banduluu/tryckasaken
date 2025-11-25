@@ -14,8 +14,6 @@ $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['name'];
 
 // Lipa City, Batangas boundaries
-// Center: 13.7430°N, 121.3127°E (City of Lipa, Batangas)
-// Radius: ~8km to cover city limits
 $LIPA_CENTER_LAT = 13.941876;
 $LIPA_CENTER_LNG = 121.164421;
 $LIPA_RADIUS_KM = 8;
@@ -165,9 +163,10 @@ $stmt = $conn->prepare("
         tb.*,
         u.name as driver_name,
         u.phone as driver_phone,
-        u.tricycle_info as vehicle_info
+        d.tricycle_info as vehicle_info
     FROM tricycle_bookings tb
-    LEFT JOIN users u ON tb.driver_id = u.user_id
+    LEFT JOIN rfid_drivers d ON tb.driver_id = d.driver_id
+    LEFT JOIN users u ON d.user_id = u.user_id
     WHERE tb.user_id = ? 
     AND LOWER(tb.status) NOT IN ('cancelled', 'declined')
     ORDER BY tb.booking_time DESC
@@ -432,9 +431,13 @@ $stmt->close();
               $icon = '<i class="bi bi-clock-fill"></i>';
               $status_text = 'Waiting for driver...';
           } elseif ($status == 'accepted') {
-              $badge_style = 'background: rgba(16,185,129,0.3); color: #10b981; border: 1px solid #10b981;';
+              $badge_style = 'background: rgba(102,126,234,0.3); color: #667eea; border: 1px solid #667eea;';
               $icon = '<i class="bi bi-check-circle-fill"></i>';
-              $status_text = 'Driver en route';
+              $status_text = 'Driver accepted - heading to pickup';
+          } elseif ($status == 'in-transit') {
+              $badge_style = 'background: rgba(59,130,246,0.3); color: #3b82f6; border: 1px solid #3b82f6;';
+              $icon = '<i class="bi bi-geo-alt-fill"></i>';
+              $status_text = 'Driver has picked you up - on the way';
           } elseif ($status == 'completed') {
               $badge_style = 'background: rgba(34,197,94,0.3); color: #22c55e; border: 1px solid #22c55e;';
               $icon = '<i class="bi bi-check-double"></i>';

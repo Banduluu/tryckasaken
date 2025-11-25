@@ -33,16 +33,15 @@ if (!$booking) {
 
 // Get all verified drivers
 $drivers_result = $conn->query("
-    SELECT u.user_id, u.name, u.email, u.phone, u.status,
+    SELECT u.user_id, u.name, u.email, u.phone, u.status, d.driver_id,
            COUNT(b.id) as total_bookings,
            SUM(CASE WHEN b.status = 'completed' THEN 1 ELSE 0 END) as completed_bookings
-    FROM users u
-    LEFT JOIN drivers d ON u.user_id = d.user_id
-    LEFT JOIN tricycle_bookings b ON u.user_id = b.driver_id
-    WHERE u.user_type = 'driver' 
-    AND d.verification_status = 'verified'
+    FROM rfid_drivers d
+    INNER JOIN users u ON d.user_id = u.user_id
+    LEFT JOIN tricycle_bookings b ON d.driver_id = b.driver_id
+    WHERE d.verification_status = 'verified'
     AND u.status = 'active'
-    GROUP BY u.user_id
+    GROUP BY d.driver_id, u.user_id
     ORDER BY u.name ASC
 ");
 $drivers = $drivers_result->fetch_all(MYSQLI_ASSOC);
@@ -53,9 +52,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['driver_id'])) {
     
     // Verify driver exists and is verified
     $verify_stmt = $conn->prepare("
-        SELECT u.user_id FROM users u
-        JOIN drivers d ON u.user_id = d.user_id
-        WHERE u.user_id = ? AND u.user_type = 'driver' AND d.verification_status = 'verified' AND u.status = 'active'
+        SELECT d.driver_id FROM rfid_drivers d
+        INNER JOIN users u ON d.user_id = u.user_id
+        WHERE d.driver_id = ? AND d.verification_status = 'verified' AND u.status = 'active'
     ");
     $verify_stmt->bind_param("i", $driver_id);
     $verify_stmt->execute();

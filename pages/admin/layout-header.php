@@ -34,10 +34,18 @@ function renderAdminHeader($pageTitle = "Admin Dashboard", $currentPage = "dashb
           <i class="bi bi-speedometer2"></i> <?= htmlspecialchars($pageTitle) ?>
         </h2>
       </div>
-      <div>
+      <div class="d-flex gap-2">
+
+        <!-- ✅ ADDED MESSAGES BUTTON HERE -->
+        <a href="../../pages/admin/messages.php" class="btn btn-primary btn-sm">
+          <i class="bi bi-chat-dots"></i> Messages
+        </a>
+
+        <!-- LOGOUT BUTTON -->
         <a href="../../pages/auth/logout-handler.php" class="btn btn-light btn-sm">
           <i class="bi bi-box-arrow-right"></i> Logout
         </a>
+
       </div>
     </div>
   </div>
@@ -73,7 +81,6 @@ function renderAdminHeader($pageTitle = "Admin Dashboard", $currentPage = "dashb
             </a>
             <a href="drivers-list.php" class="nav-link-btn <?= $currentPage === 'drivers' || $currentPage === 'driver_management' ? 'active' : '' ?>">
               <i class="bi bi-car-front"></i> Drivers
-            </a>
             </a>
             <a href="drivers-verification.php" class="nav-link-btn <?= $currentPage === 'verification' || $currentPage === 'driver_verification' ? 'active' : '' ?>">
               <i class="bi bi-shield-check"></i> Verification

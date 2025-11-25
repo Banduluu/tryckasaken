@@ -3,6 +3,7 @@ session_start();
 require_once '../../config/Database.php';
 
 $error = '';
+$logged_in_user_type = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $database = new Database();
@@ -25,41 +26,38 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             if ($user['status'] != 'active') {
                 $error = "Your account has been suspended or deactivated.";
             } else {
-                // Check if the user type matches the requested login type
-                if ($user['user_type'] !== $requested_user_type) {
-                    $user_type_names = [
-                        'passenger' => 'Passenger',
-                        'driver' => 'Driver', 
-                        'admin' => 'Admin'
-                    ];
-                    $error = "This account is registered as " . $user_type_names[$user['user_type']] . ". Please use the correct login tab.";
-                } else {
-                    $_SESSION['user_id'] = $user['user_id'];
-                    $_SESSION['user_type'] = $user['user_type']; 
-                    $_SESSION['name'] = $user['name'];
-                    $_SESSION['email'] = $user['email'];
+                $_SESSION['user_id'] = $user['user_id'];
+                $_SESSION['user_type'] = $user['user_type']; 
+                $_SESSION['name'] = $user['name'];
+                $_SESSION['email'] = $user['email'];
+                $logged_in_user_type = $user['user_type'];
+                
+                // Determine redirect URL based on actual user type in database
+                $redirect_url = '';
+                if ($user['user_type'] == 'driver') {
+                    $driver_sql = "SELECT verification_status FROM rfid_drivers WHERE user_id = ?";
+                    $driver_stmt = $conn->prepare($driver_sql);
+                    $driver_stmt->bind_param("i", $user['user_id']);
+                    $driver_stmt->execute();
+                    $driver_result = $driver_stmt->get_result();
                     
-                    if ($user['user_type'] == 'driver') {
-                        $driver_sql = "SELECT verification_status FROM drivers WHERE user_id = ?";
-                        $driver_stmt = $conn->prepare($driver_sql);
-                        $driver_stmt->bind_param("i", $user['user_id']);
-                        $driver_stmt->execute();
-                        $driver_result = $driver_stmt->get_result();
-                        
-                        if ($driver_result->num_rows > 0) {
-                            $driver = $driver_result->fetch_assoc();
-                            $_SESSION['verification_status'] = $driver['verification_status'];
-                        }
-                        
-                        $driver_stmt->close();
-                        header("Location: ../../pages/driver/login-form.php");
-                    } elseif ($user['user_type'] == 'admin') {
-                        header("Location: ../../pages/admin/dashboard.php");
-                    } else {
-                        header("Location: ../../pages/passenger/login-form.php");
+                    if ($driver_result->num_rows > 0) {
+                        $driver = $driver_result->fetch_assoc();
+                        $_SESSION['verification_status'] = $driver['verification_status'];
                     }
-                    exit();
+                    
+                    $driver_stmt->close();
+                    $redirect_url = '../../pages/driver/login-form.php';
+                } elseif ($user['user_type'] == 'admin') {
+                    $redirect_url = '../../pages/admin/dashboard.php';
+                } else {
+                    $redirect_url = '../passenger/login-form.php';
                 }
+                
+                $stmt->close();
+                $conn->close();
+                header("Location: $redirect_url");
+                exit();
             }
         } else {
             $error = "Invalid email or password.";
@@ -100,6 +98,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
               <i class="bi bi-truck"></i>
             </div>
             <h1>Sign in</h1>
+            <?php if ($logged_in_user_type): ?>
+              <p class="user-type-info">
+                Logged in as: <strong><?php echo ucfirst($logged_in_user_type); ?></strong>
+              </p>
+            <?php endif; ?>
           </div>
 
           <?php if ($error): ?>
@@ -108,19 +111,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
               <span><?php echo htmlspecialchars($error); ?></span>
             </div>
           <?php endif; ?>
-
-          <!-- Login Tabs -->
-          <div class="login-tabs">
-            <button type="button" class="tab-button active" data-tab="passenger">
-              <i class="bi bi-person"></i> Passenger
-            </button>
-            <button type="button" class="tab-button" data-tab="driver">
-              <i class="bi bi-car-front"></i> Driver
-            </button>
-            <button type="button" class="tab-button" data-tab="admin">
-              <i class="bi bi-gear"></i> Admin
-            </button>
-          </div>
 
           <!-- Passenger Login Form -->
           <div class="tab-content active" id="passenger-tab">
@@ -235,46 +225,5 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-      // Tab switching functionality
-      document.addEventListener('DOMContentLoaded', function() {
-        const tabButtons = document.querySelectorAll('.tab-button');
-        const tabContents = document.querySelectorAll('.tab-content');
-        
-        // Handle tab switching
-        tabButtons.forEach(button => {
-          button.addEventListener('click', function() {
-            const targetTab = this.getAttribute('data-tab');
-            
-            // Remove active class from all buttons and contents
-            tabButtons.forEach(btn => btn.classList.remove('active'));
-            tabContents.forEach(content => content.classList.remove('active'));
-            
-            // Add active class to clicked button and corresponding content
-            this.classList.add('active');
-            document.getElementById(targetTab + '-tab').classList.add('active');
-          });
-        });
-
-        // Auto-select tab based on error state or URL parameter
-        <?php if (isset($_POST['user_type'])): ?>
-          const userType = '<?php echo $_POST['user_type']; ?>';
-          const targetButton = document.querySelector(`[data-tab="${userType}"]`);
-          if (targetButton) {
-            targetButton.click();
-          }
-        <?php endif; ?>
-
-        // Handle URL parameters for direct tab access
-        const urlParams = new URLSearchParams(window.location.search);
-        const tabParam = urlParams.get('tab');
-        if (tabParam && ['passenger', 'driver', 'admin'].includes(tabParam)) {
-          const targetButton = document.querySelector(`[data-tab="${tabParam}"]`);
-          if (targetButton) {
-            targetButton.click();
-          }
-        }
-      });
-    </script>
 </body>
 </html>

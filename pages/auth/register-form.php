@@ -68,11 +68,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $conn->begin_transaction();
                 
                 try {
-                    // Insert user record
-                    $sql = "INSERT INTO users (user_type, name, email, phone, password, license_number, tricycle_info, verification_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                    // Insert user record (without driver-specific fields)
+                    $sql = "INSERT INTO users (user_type, name, email, phone, password, status) VALUES (?, ?, ?, ?, ?, 'active')";
                     $stmt = $conn->prepare($sql);
-                    $verification_status = ($user_type === 'driver') ? 'pending' : null;
-                    $stmt->bind_param("ssssssss", $user_type, $name, $email, $phone, $hashed_password, $license_number, $tricycle_info, $verification_status);
+                    $stmt->bind_param("sssss", $user_type, $name, $email, $phone, $hashed_password);
                     
                     if ($stmt->execute()) {
                         $user_id = $conn->insert_id;
@@ -145,10 +144,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             }
                             
                             if ($upload_success) {
-                                // Insert driver record
-                                $driver_sql = "INSERT INTO drivers (user_id, or_cr_path, license_path, picture_path, verification_status) VALUES (?, ?, ?, ?, 'pending')";
+                                // Insert driver record in rfid_drivers table with license and tricycle info
+                                $driver_sql = "INSERT INTO rfid_drivers (user_id, license_number, tricycle_info, or_cr_path, license_path, picture_path, verification_status) VALUES (?, ?, ?, ?, ?, ?, 'pending')";
                                 $driver_stmt = $conn->prepare($driver_sql);
-                                $driver_stmt->bind_param("isss", $user_id, $file_paths['or_cr_path'], $file_paths['license_path'], $file_paths['picture_path']);
+                                $driver_stmt->bind_param("isssss", $user_id, $license_number, $tricycle_info, $file_paths['or_cr_path'], $file_paths['license_path'], $file_paths['picture_path']);
                                 
                                 if ($driver_stmt->execute()) {
                                     $conn->commit();

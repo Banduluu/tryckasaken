@@ -15,11 +15,12 @@ if (!$bookingId) {
 
 // Get booking details with user info
 $query = "SELECT b.*, p.name as passenger_name, p.email as passenger_email, p.phone as passenger_phone,
-                 d.name as driver_name, d.email as driver_email, d.phone as driver_phone,
+                 u.name as driver_name, u.email as driver_email, u.phone as driver_phone,
                  d.license_number, d.tricycle_info
           FROM tricycle_bookings b 
           LEFT JOIN users p ON b.user_id = p.user_id 
-          LEFT JOIN users d ON b.driver_id = d.user_id
+          LEFT JOIN rfid_drivers d ON b.driver_id = d.driver_id
+          LEFT JOIN users u ON d.user_id = u.user_id
           WHERE b.id = ?";
 
 $stmt = $conn->prepare($query);
@@ -31,6 +32,55 @@ $booking = $result->fetch_assoc();
 if (!$booking) {
     header("Location: bookings-list.php");
     exit();
+}
+
+// Function to convert coordinates to location name using reverse geocoding
+function getLocationFromCoordinates($lat, $lng) {
+    try {
+        // Use Nominatim (OpenStreetMap) for reverse geocoding
+        $url = "https://nominatim.openstreetmap.org/reverse?format=json&lat={$lat}&lon={$lng}";
+        
+        $context = stream_context_create([
+            'http' => [
+                'timeout' => 5,
+                'user_agent' => 'TrycKaSaken/1.0'
+            ]
+        ]);
+        
+        $response = @file_get_contents($url, false, $context);
+        if ($response === false) {
+            return "Lat: {$lat}, Lng: {$lng}";
+        }
+        
+        $data = json_decode($response, true);
+        if ($data && isset($data['address'])) {
+            $address = $data['address'];
+            
+            // Build location string from address components
+            $locationParts = [];
+            
+            if (isset($address['road'])) {
+                $locationParts[] = $address['road'];
+            }
+            if (isset($address['village'])) {
+                $locationParts[] = $address['village'];
+            }
+            if (isset($address['suburb'])) {
+                $locationParts[] = $address['suburb'];
+            }
+            if (isset($address['city'])) {
+                $locationParts[] = $address['city'];
+            }
+            
+            if (!empty($locationParts)) {
+                return implode(', ', $locationParts);
+            }
+        }
+        
+        return "Lat: {$lat}, Lng: {$lng}";
+    } catch (Exception $e) {
+        return "Lat: {$lat}, Lng: {$lng}";
+    }
 }
 
 renderAdminHeader("Booking Details #" . $bookingId, "bookings");
@@ -76,14 +126,22 @@ renderAdminHeader("Booking Details #" . $bookingId, "bookings");
                     <label>Pickup Location:</label>
                     <div class="detail-value">
                         <i class="bi bi-geo-alt text-success"></i>
-                        <?= htmlspecialchars($booking['location']) ?>
+                        <?= htmlspecialchars(
+                          (!empty($booking['pickup_lat']) && !empty($booking['pickup_lng'])) 
+                            ? getLocationFromCoordinates($booking['pickup_lat'], $booking['pickup_lng'])
+                            : $booking['location']
+                        ) ?>
                     </div>
                 </div>
                 <div class="detail-item">
                     <label>Destination:</label>
                     <div class="detail-value">
                         <i class="bi bi-flag text-primary"></i>
-                        <?= htmlspecialchars($booking['destination']) ?>
+                        <?= htmlspecialchars(
+                          (!empty($booking['dest_lat']) && !empty($booking['dest_lng'])) 
+                            ? getLocationFromCoordinates($booking['dest_lat'], $booking['dest_lng'])
+                            : $booking['destination']
+                        ) ?>
                     </div>
                 </div>
                 <div class="detail-item">

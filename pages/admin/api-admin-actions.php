@@ -67,6 +67,10 @@ switch ($action) {
         updateBookingStatus($conn);
         break;
     
+    case 'get_driver_attendance':
+        getDriverAttendance($conn);
+        break;
+    
     default:
         echo json_encode(['success' => false, 'message' => 'Invalid action']);
         break;
@@ -83,7 +87,7 @@ function getStats($conn) {
         $result = $conn->query("SELECT COUNT(*) as total FROM users WHERE user_type = 'passenger'");
         $stats['passengers'] = $result ? $result->fetch_assoc()['total'] : 0;
 
-        $result = $conn->query("SELECT COUNT(*) as total FROM users WHERE user_type = 'driver'");
+        $result = $conn->query("SELECT COUNT(*) as total FROM rfid_drivers");
         $stats['drivers'] = $result ? $result->fetch_assoc()['total'] : 0;
 
         // Booking counts
@@ -126,10 +130,9 @@ function getRecentActivity($conn) {
 
         // Recent driver applications
         $result = $conn->query("SELECT u.user_id, u.name, u.email, u.created_at 
-                              FROM users u
-                              INNER JOIN drivers d ON u.user_id = d.user_id
-                              WHERE u.user_type = 'driver' 
-                              AND d.verification_status = 'pending'
+                              FROM rfid_drivers d
+                              INNER JOIN users u ON d.user_id = u.user_id
+                              WHERE d.verification_status = 'pending'
                               ORDER BY u.created_at DESC LIMIT 5");
         $data['drivers'] = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
 
@@ -148,8 +151,8 @@ function verifyDriver($conn) {
 
     $driverId = intval($_POST['driver_id']);
 
-    // Check if driver exists
-    $checkStmt = $conn->prepare("SELECT COUNT(*) as count FROM drivers WHERE user_id = ?");
+    // Check if driver exists in rfid_drivers table
+    $checkStmt = $conn->prepare("SELECT COUNT(*) as count FROM rfid_drivers WHERE driver_id = ?");
     $checkStmt->bind_param("i", $driverId);
     $checkStmt->execute();
     $driverExists = $checkStmt->get_result()->fetch_assoc()['count'] > 0;
@@ -160,21 +163,16 @@ function verifyDriver($conn) {
         return;
     }
 
-    // Update both tables in transaction
+    // Update rfid_drivers table
     $conn->begin_transaction();
 
     try {
-        // Update users table
-        $stmt1 = $conn->prepare("UPDATE users SET is_verified = 1, verification_status = 'verified' WHERE user_id = ? AND user_type = 'driver'");
-        $stmt1->bind_param("i", $driverId);
-        $result1 = $stmt1->execute();
+        // Update rfid_drivers table
+        $stmt = $conn->prepare("UPDATE rfid_drivers SET verification_status = 'verified' WHERE driver_id = ?");
+        $stmt->bind_param("i", $driverId);
+        $result = $stmt->execute();
 
-        // Update drivers table
-        $stmt2 = $conn->prepare("UPDATE drivers SET verification_status = 'verified' WHERE user_id = ?");
-        $stmt2->bind_param("i", $driverId);
-        $result2 = $stmt2->execute();
-
-        if ($result1 && $result2) {
+        if ($result) {
             $conn->commit();
             echo json_encode(['success' => true, 'message' => 'Driver verified successfully!']);
         } else {
@@ -182,8 +180,7 @@ function verifyDriver($conn) {
             echo json_encode(['success' => false, 'message' => 'Failed to verify driver']);
         }
 
-        $stmt1->close();
-        $stmt2->close();
+        $stmt->close();
     } catch (Exception $e) {
         $conn->rollback();
         echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
@@ -199,8 +196,8 @@ function rejectDriver($conn) {
 
     $driverId = intval($_POST['driver_id']);
 
-    // Check if driver exists
-    $checkStmt = $conn->prepare("SELECT COUNT(*) as count FROM drivers WHERE user_id = ?");
+    // Check if driver exists in rfid_drivers table
+    $checkStmt = $conn->prepare("SELECT COUNT(*) as count FROM rfid_drivers WHERE driver_id = ?");
     $checkStmt->bind_param("i", $driverId);
     $checkStmt->execute();
     $driverExists = $checkStmt->get_result()->fetch_assoc()['count'] > 0;
@@ -211,21 +208,16 @@ function rejectDriver($conn) {
         return;
     }
 
-    // Update both tables in transaction
+    // Update rfid_drivers table
     $conn->begin_transaction();
 
     try {
-        // Update users table
-        $stmt1 = $conn->prepare("UPDATE users SET verification_status = 'rejected' WHERE user_id = ? AND user_type = 'driver'");
-        $stmt1->bind_param("i", $driverId);
-        $result1 = $stmt1->execute();
+        // Update rfid_drivers table
+        $stmt = $conn->prepare("UPDATE rfid_drivers SET verification_status = 'rejected' WHERE driver_id = ?");
+        $stmt->bind_param("i", $driverId);
+        $result = $stmt->execute();
 
-        // Update drivers table
-        $stmt2 = $conn->prepare("UPDATE drivers SET verification_status = 'rejected' WHERE user_id = ?");
-        $stmt2->bind_param("i", $driverId);
-        $result2 = $stmt2->execute();
-
-        if ($result1 && $result2) {
+        if ($result) {
             $conn->commit();
             echo json_encode(['success' => true, 'message' => 'Driver application rejected successfully!']);
         } else {
@@ -233,8 +225,7 @@ function rejectDriver($conn) {
             echo json_encode(['success' => false, 'message' => 'Failed to reject driver']);
         }
 
-        $stmt1->close();
-        $stmt2->close();
+        $stmt->close();
     } catch (Exception $e) {
         $conn->rollback();
         echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
@@ -244,12 +235,11 @@ function rejectDriver($conn) {
 // Function to get pending drivers with details
 function getPendingDrivers($conn) {
     try {
-        $query = "SELECT u.user_id, u.name, u.email, u.phone, u.license_number, u.tricycle_info, u.created_at,
-                         d.verification_status, d.or_cr_path, d.license_path, d.picture_path
-                  FROM users u
-                  INNER JOIN drivers d ON u.user_id = d.user_id
-                  WHERE u.user_type = 'driver' 
-                  AND d.verification_status = 'pending'
+        $query = "SELECT u.user_id, u.name, u.email, u.phone, d.license_number, d.tricycle_info, u.created_at,
+                         d.verification_status, d.or_cr_path, d.license_path, d.picture_path, d.driver_id
+                  FROM rfid_drivers d
+                  INNER JOIN users u ON d.user_id = u.user_id
+                  WHERE d.verification_status = 'pending'
                   ORDER BY u.created_at DESC";
         
         $result = $conn->query($query);
@@ -271,8 +261,8 @@ function assignDriver($conn) {
     $bookingId = intval($_POST['booking_id']);
     $driverId = intval($_POST['driver_id']);
 
-    // Check if driver is verified
-    $checkStmt = $conn->prepare("SELECT verification_status FROM drivers WHERE user_id = ?");
+    // Check if driver is verified (using rfid_drivers table)
+    $checkStmt = $conn->prepare("SELECT verification_status FROM rfid_drivers WHERE driver_id = ?");
     $checkStmt->bind_param("i", $driverId);
     $checkStmt->execute();
     $result = $checkStmt->get_result()->fetch_assoc();
@@ -372,8 +362,8 @@ function deleteUser($conn) {
     $conn->begin_transaction();
 
     try {
-        // If user is a driver, delete from drivers table first
-        $stmt1 = $conn->prepare("DELETE FROM drivers WHERE user_id = ?");
+        // If user is a driver, delete from rfid_drivers table first
+        $stmt1 = $conn->prepare("DELETE FROM rfid_drivers WHERE user_id = ?");
         $stmt1->bind_param("i", $userId);
         $stmt1->execute();
         $stmt1->close();
@@ -451,11 +441,10 @@ function getBookings($conn) {
 // Function to get available drivers
 function getAvailableDrivers($conn) {
     try {
-        $query = "SELECT u.user_id, u.name, u.phone, u.tricycle_info, d.is_online
-                  FROM users u
-                  INNER JOIN drivers d ON u.user_id = d.user_id
-                  WHERE u.user_type = 'driver' 
-                  AND d.verification_status = 'verified'
+        $query = "SELECT u.user_id, u.name, u.phone, d.tricycle_info, d.is_online, d.driver_id
+                  FROM rfid_drivers d
+                  INNER JOIN users u ON d.user_id = u.user_id
+                  WHERE d.verification_status = 'verified'
                   AND u.status = 'active'
                   ORDER BY d.is_online DESC, u.name ASC";
         
@@ -495,5 +484,31 @@ function updateBookingStatus($conn) {
     }
 
     $stmt->close();
+}
+
+// Function to get recent driver attendance records
+function getDriverAttendance($conn) {
+    try {
+        $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 10;
+        
+        $query = "SELECT da.id, da.timestamp, da.action, u.name, u.phone, d.picture_path, d.tricycle_info
+                  FROM driver_attendance da
+                  JOIN users u ON da.user_id = u.user_id
+                  JOIN rfid_drivers d ON da.driver_id = d.driver_id
+                  ORDER BY da.timestamp DESC
+                  LIMIT ?";
+        
+        $stmt = $conn->prepare($query);
+        $stmt->bind_param("i", $limit);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        $records = $result->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        echo json_encode(['success' => true, 'data' => $records]);
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => 'Failed to fetch attendance: ' . $e->getMessage()]);
+    }
 }
 ?>

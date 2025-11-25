@@ -1,27 +1,55 @@
 /* Navigation Bar Styles */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #ffffff !important;
+}
+
+nav,
+.navbar,
+.navbar-expand-lg {
+  background: #f0fdf4 !important;
+  background-color: #f0fdf4 !important;
+}
+
 .navbar-tryckasaken {
-  background: rgba(255, 255, 255, 0.95);
+  background: #f0fdf4 !important;
+  background-color: #f0fdf4 !important;
   backdrop-filter: blur(10px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: none !important;
   padding: 1rem 0;
   position: sticky;
   top: 0;
   z-index: 1000;
+  border: none !important;
+  border-bottom: none !important;
+}
+
+.navbar-tryckasaken::after {
+  display: none !important;
+}
+
+.container-fluid {
+  background: transparent !important;
 }
 
 .navbar-brand {
   font-size: 1.5rem;
   font-weight: 800;
-  color: var(--color-primary);
+  color: #0a8d3f;
   text-decoration: none;
   display: flex;
   align-items: center;
   gap: 8px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .navbar-brand:hover {
-  color: var(--color-primary);
+  color: #0a8d3f;
   text-decoration: none;
+  transform: scale(1.05);
 }
 
 .navbar-brand i {
@@ -29,15 +57,23 @@
 }
 
 .navbar-nav .nav-link {
-  color: var(--color-gray-700);
+  color: #374151;
   font-weight: 500;
   margin: 0 12px;
-  transition: color var(--transition-base);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
+  text-decoration: none;
+  padding: 8px 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
-.navbar-nav .nav-link:hover {
-  color: var(--color-primary);
+.navbar-nav .nav-link:hover,
+.navbar-nav .nav-link:focus {
+  color: #0a8d3f;
+  background: transparent !important;
+  background-color: transparent !important;
+  outline: none !important;
 }
 
 .navbar-nav .nav-link::after {
@@ -45,22 +81,28 @@
   position: absolute;
   width: 0;
   height: 2px;
-  background: var(--color-primary);
-  bottom: -5px;
+  background: #0a8d3f;
+  bottom: -8px;
   left: 0;
-  transition: width var(--transition-base);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: none;
 }
 
 .navbar-nav .nav-link:hover::after {
   width: 100%;
+  display: none;
 }
 
 .navbar-nav .nav-link.active {
-  color: var(--color-primary);
+  color: #0a8d3f;
+  font-weight: 600;
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
 .navbar-nav .nav-link.active::after {
   width: 100%;
+  display: none;
 }
 
 @media (max-width: 991.98px) {
@@ -71,6 +113,38 @@
   .navbar-collapse {
     margin-top: 1rem;
     padding-top: 1rem;
-    border-top: 1px solid var(--color-gray-200);
+    border-top: 1px solid #e5e7eb;
+    background: transparent !important;
   }
+
+  .navbar-nav .nav-link {
+    margin: 10px 0;
+    background: transparent !important;
+  }
+}
+
+/* Bootstrap overrides */
+.navbar-light .navbar-nav .nav-link {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+.navbar-light .navbar-nav .nav-link:hover,
+.navbar-light .navbar-nav .nav-link:focus {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+.navbar-light .navbar-nav .nav-link.active {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* Ensure no background on any navbar element */
+[class*="navbar"] {
+  background-color: transparent !important;
+}
+
+.navbar-expand-lg {
+  background-color: #ffffff !important;
 }

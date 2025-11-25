@@ -14,7 +14,7 @@ $driver_id = $_SESSION['user_id'];
 $driver_name = $_SESSION['name'];
 
 // Check driver verification status
-$verification_query = "SELECT verification_status FROM drivers WHERE user_id = ?";
+$verification_query = "SELECT verification_status FROM rfid_drivers WHERE user_id = ?";
 $stmt = $conn->prepare($verification_query);
 $stmt->bind_param("i", $driver_id);
 $stmt->execute();

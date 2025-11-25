@@ -14,7 +14,7 @@ try {
     $result = $conn->query("SELECT COUNT(*) as total FROM users WHERE user_type = 'passenger'");
     $stats['passengers'] = $result ? $result->fetch_assoc()['total'] : 0;
 
-    $result = $conn->query("SELECT COUNT(*) as total FROM users WHERE user_type = 'driver'");
+    $result = $conn->query("SELECT COUNT(*) as total FROM rfid_drivers");
     $stats['drivers'] = $result ? $result->fetch_assoc()['total'] : 0;
 
     // Booking counts
@@ -30,29 +30,19 @@ try {
     // Get pending driver verifications - only count drivers with pending status
     $result = $conn->query("
         SELECT COUNT(*) as total 
-        FROM drivers d
+        FROM rfid_drivers d
         INNER JOIN users u ON d.user_id = u.user_id 
         WHERE u.user_type = 'driver' 
-        AND d.verification_status = 'pending'
+        AND (d.verification_status = 'pending' OR d.verification_status IS NULL)
     ");
     $stats['pending_verifications'] = $result ? $result->fetch_assoc()['total'] : 0;
 
     // Recent activity
-    $recentBookings = [];
-    $result = $conn->query("SELECT b.*, p.name as passenger_name 
-                           FROM tricycle_bookings b 
-                           LEFT JOIN users p ON b.user_id = p.user_id 
-                           ORDER BY b.booking_time DESC LIMIT 5");
-    if ($result) {
-        $recentBookings = $result->fetch_all(MYSQLI_ASSOC);
-    }
-
     $recentDrivers = [];
     $result = $conn->query("SELECT u.name, u.email, u.created_at 
-                          FROM users u
-                          INNER JOIN drivers d ON u.user_id = d.user_id
-                          WHERE u.user_type = 'driver' 
-                          AND d.verification_status = 'pending'
+                          FROM rfid_drivers d
+                          INNER JOIN users u ON d.user_id = u.user_id
+                          WHERE d.verification_status = 'pending' OR d.verification_status IS NULL
                           ORDER BY u.created_at DESC LIMIT 5");
     if ($result) {
         $recentDrivers = $result->fetch_all(MYSQLI_ASSOC);
@@ -68,13 +58,12 @@ try {
         'completed_bookings' => 0,
         'pending_verifications' => 0
     ];
-    $recentBookings = [];
     $recentDrivers = [];
 }
 
 renderAdminHeader("Dashboard", "admin");
 ?>
-<link rel="stylesheet" href="../../public/css/dashboard.css">
+<link rel="stylesheet" href="../../public/css/dashboard.css?v=<?php echo time(); ?>">
 
 <!-- Quick Stats -->
 <div class="row g-4 mb-4">
@@ -191,77 +180,36 @@ renderAdminHeader("Dashboard", "admin");
     </div>
 </div>
 
-<!-- Recent Activity -->
-<div class="row g-4">
-    <div class="col-md-6">
-        <div class="content-card">
-            <h5><i class="bi bi-clock-history"></i> Recent Bookings</h5>
-            <?php if (count($recentBookings) > 0): ?>
-                <div class="recent-list">
-                    <?php foreach ($recentBookings as $booking): ?>
-                        <div class="recent-item">
-                            <div class="recent-info">
-                                <strong>#<?= $booking['id'] ?></strong> - <?= htmlspecialchars($booking['passenger_name']) ?><br>
-                                <small class="text-muted">
-                                    <?= htmlspecialchars($booking['location']) ?> → <?= htmlspecialchars($booking['destination']) ?>
-                                </small>
-                            </div>
-                            <div class="recent-meta">
-                                <span class="status-badge status-<?= $booking['status'] ?>">
-                                    <?= ucfirst($booking['status']) ?>
-                                </span>
-                                <small class="text-muted d-block">
-                                    <?= date('M d, H:i', strtotime($booking['booking_time'])) ?>
-                                </small>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-                <div class="text-center mt-3">
-                    <a href="bookings-list.php" class="btn btn-outline-primary btn-sm">
-                        <i class="bi bi-eye"></i> View All Bookings
-                    </a>
-                </div>
-            <?php else: ?>
-                <div class="empty-state small">
-                    <i class="bi bi-calendar-x"></i>
-                    <p>No recent bookings</p>
-                </div>
-            <?php endif; ?>
+<!-- Driver Attendance Section -->
+<div class="row g-4 mt-2">
+    <div class="col-12">
+        <div class="attendance-section-header">
+            <h5><i class="bi bi-clock-history"></i> Driver Attendance</h5>
+        </div>
+        <div id="rfidAttendanceContainer">
+            <div class="empty-state small">
+                <i class="bi bi-hourglass"></i>
+                <p>Waiting for RFID tap...</p>
+            </div>
         </div>
     </div>
-    
-    <div class="col-md-6">
-        <div class="content-card">
-            <h5><i class="bi bi-person-plus"></i> New Driver Applications</h5>
-            <?php if (count($recentDrivers) > 0): ?>
-                <div class="recent-list">
-                    <?php foreach ($recentDrivers as $driver): ?>
-                        <div class="recent-item">
-                            <div class="recent-info">
-                                <strong><?= htmlspecialchars($driver['name']) ?></strong><br>
-                                <small class="text-muted"><?= htmlspecialchars($driver['email']) ?></small>
-                            </div>
-                            <div class="recent-meta">
-                                <span class="status-badge status-pending">New</span>
-                                <small class="text-muted d-block">
-                                    <?= date('M d, H:i', strtotime($driver['created_at'])) ?>
-                                </small>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
+</div>
+
+<!-- Driver Attendance Modal -->
+<div class="modal fade" id="driverAttendanceModal" tabindex="-1" aria-labelledby="driverAttendanceLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="driverAttendanceLabel">Driver Check-in</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="attendanceContent" class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
                 </div>
-                <div class="text-center mt-3">
-                    <a href="drivers-verification.php" class="btn btn-outline-primary btn-sm">
-                        <i class="bi bi-shield-check"></i> Review Applications
-                    </a>
-                </div>
-            <?php else: ?>
-                <div class="empty-state small">
-                    <i class="bi bi-person-x"></i>
-                    <p>No new applications</p>
-                </div>
-            <?php endif; ?>
+            </div>
         </div>
     </div>
 </div>
@@ -365,35 +313,93 @@ function updateStatsDisplay(stats) {
     });
 }
 
-// AJAX: Refresh recent activity
-function refreshActivity() {
-    fetch('api-admin-actions.php?action=get_recent_activity')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Check if there are new items
-                checkForNewActivity(data.data);
-            }
-        })
-        .catch(error => console.error('Activity refresh error:', error));
-}
 
-function checkForNewActivity(data) {
-    const currentBookingCount = document.querySelectorAll('.recent-list .recent-item').length;
-    const newBookingCount = data.bookings.length;
-    
-    if (newBookingCount > currentBookingCount) {
-        showToast('New booking activity detected!', 'info');
-        // Optional: Could reload specific sections instead of full page
-        setTimeout(() => location.reload(), 2000);
-    }
-}
 
 // Auto-refresh every 30 seconds
 setInterval(() => {
     refreshStats();
-    refreshActivity();
+    loadDriverAttendance();
 }, 30000);
+
+// Initial load
+document.addEventListener('DOMContentLoaded', function() {
+    loadDriverAttendance();
+});
+
+// Load driver attendance records
+function loadDriverAttendance() {
+    fetch('api-admin-actions.php?action=get_driver_attendance&limit=5')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateAttendanceDisplay(data.data);
+            }
+        })
+        .catch(error => console.error('Attendance fetch error:', error));
+}
+
+function updateAttendanceDisplay(records) {
+    const container = document.getElementById('rfidAttendanceContainer');
+    
+    if (records.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state small">
+                <i class="bi bi-hourglass"></i>
+                <p>Waiting for RFID tap...</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '<div class="attendance-grid">';
+    
+    records.forEach(record => {
+        const picturePath = record.picture_path ? '../../' + record.picture_path : '../../public/images/default-avatar.png';
+        const actionBadge = record.action === 'online' 
+            ? '<span class="badge bg-success"><i class="bi bi-check-circle"></i> Check-in</span>' 
+            : '<span class="badge bg-danger"><i class="bi bi-x-circle"></i> Check-out</span>';
+        const actionText = record.action === 'online' ? 'Checked In' : 'Checked Out';
+        
+        html += `
+            <div class="attendance-card">
+                <div class="attendance-card-body">
+                    <div class="attendance-picture">
+                        <img src="${picturePath}" alt="${record.name}" onerror="this.src='../../public/images/default-avatar.png'">
+                    </div>
+                    <div class="attendance-card-info">
+                        <div class="attendance-card-header">
+                            <h5>${htmlEscape(record.name)}</h5>
+                        </div>
+                        <div class="attendance-card-phone">
+                            <i class="bi bi-telephone"></i>
+                            <span>${htmlEscape(record.phone)}</span>
+                        </div>
+                        <div class="attendance-card-tricycle">
+                            <i class="bi bi-car-front"></i>
+                            <span>${htmlEscape(record.tricycle_info)}</span>
+                        </div>
+                        <div class="attendance-card-status">
+                            ${actionBadge}
+                        </div>
+                        <div class="attendance-card-time">
+                            <i class="bi bi-calendar-event"></i>
+                            <small>${new Date(record.timestamp).toLocaleString()}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function htmlEscape(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
 
 // Add CSS animations
 const style = document.createElement('style');

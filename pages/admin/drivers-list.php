@@ -34,17 +34,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Get only verified drivers with online status and active trip info
 $query = "SELECT 
     u.*, 
+    d.driver_id,
+    d.license_number,
+    d.tricycle_info,
     d.verification_status, 
     d.is_online,
     COUNT(CASE WHEN b.status = 'accepted' THEN 1 END) as active_trips,
     COUNT(CASE WHEN b.status = 'completed' THEN 1 END) as completed_trips
-FROM users u 
-LEFT JOIN drivers d ON u.user_id = d.user_id 
-LEFT JOIN tricycle_bookings b ON u.user_id = b.driver_id
-WHERE u.user_type = 'driver' AND d.verification_status = 'verified'
-GROUP BY u.user_id, u.user_type, u.name, u.email, u.phone, u.password, u.license_number, 
-         u.tricycle_info, u.verification_status, u.is_verified, u.is_active, u.created_at, 
-         u.status, d.verification_status, d.is_online
+FROM rfid_drivers d
+INNER JOIN users u ON d.user_id = u.user_id
+LEFT JOIN tricycle_bookings b ON d.driver_id = b.driver_id
+WHERE d.verification_status = 'verified'
+GROUP BY d.driver_id, u.user_id, u.user_type, u.name, u.email, u.phone, u.password, 
+         d.license_number, d.tricycle_info, d.verification_status, u.is_verified, u.is_active, 
+         u.created_at, u.status, d.is_online
 ORDER BY d.is_online DESC, u.user_id DESC";
 $result = $conn->query($query);
 $drivers = $result->fetch_all(MYSQLI_ASSOC);

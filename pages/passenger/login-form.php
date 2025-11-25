@@ -13,13 +13,63 @@ $conn = $database->getConnection();
 $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['name'];
 
+// Function to convert coordinates to location name using reverse geocoding
+function getLocationFromCoordinates($lat, $lng) {
+    try {
+        // Use Nominatim (OpenStreetMap) for reverse geocoding
+        $url = "https://nominatim.openstreetmap.org/reverse?format=json&lat={$lat}&lon={$lng}";
+        
+        $context = stream_context_create([
+            'http' => [
+                'timeout' => 5,
+                'user_agent' => 'TrycKaSaken/1.0'
+            ]
+        ]);
+        
+        $response = @file_get_contents($url, false, $context);
+        if ($response === false) {
+            return "Lat: {$lat}, Lng: {$lng}";
+        }
+        
+        $data = json_decode($response, true);
+        if ($data && isset($data['address'])) {
+            $address = $data['address'];
+            
+            // Build location string from address components
+            $locationParts = [];
+            
+            if (isset($address['road'])) {
+                $locationParts[] = $address['road'];
+            }
+            if (isset($address['village'])) {
+                $locationParts[] = $address['village'];
+            }
+            if (isset($address['suburb'])) {
+                $locationParts[] = $address['suburb'];
+            }
+            if (isset($address['city'])) {
+                $locationParts[] = $address['city'];
+            }
+            
+            if (!empty($locationParts)) {
+                return implode(', ', $locationParts);
+            }
+        }
+        
+        return "Lat: {$lat}, Lng: {$lng}";
+    } catch (Exception $e) {
+        return "Lat: {$lat}, Lng: {$lng}";
+    }
+}
+
 // Get current active booking with driver info (pending or accepted, not completed/cancelled/declined)
 $booking_query = "SELECT b.*, 
                   u.name as driver_name, 
                   u.phone as driver_phone,
-                  u.tricycle_info as vehicle_info
+                  d.tricycle_info as vehicle_info
                   FROM tricycle_bookings b
-                  LEFT JOIN users u ON b.driver_id = u.user_id
+                  LEFT JOIN rfid_drivers d ON b.driver_id = d.driver_id
+                  LEFT JOIN users u ON d.user_id = u.user_id
                   WHERE b.user_id = ? 
                   AND LOWER(b.status) NOT IN ('completed', 'cancelled', 'declined')
                   ORDER BY b.booking_time DESC 
@@ -101,7 +151,7 @@ $stmt->close();
     <?php if ($current_booking): ?>
       <div class="booking-info-grid">
         <div class="booking-info-item">
-          <i class="bi bi-hash" style="color: #667eea;"></i>
+          <i class="bi bi-hash" style="color: #86efac;"></i>
           <div>
             <div class="booking-info-label">Booking ID</div>
             <div class="booking-info-value">#<?= htmlspecialchars($current_booking['id']); ?></div>
@@ -109,23 +159,31 @@ $stmt->close();
         </div>
 
         <div class="booking-info-item">
-          <i class="bi bi-geo-alt-fill" style="color: #ef4444;"></i>
+          <i class="bi bi-geo-alt-fill" style="color: #86efac;"></i>
           <div>
             <div class="booking-info-label">Pickup Location</div>
-            <div class="booking-info-value"><?= htmlspecialchars($current_booking['location']); ?></div>
+            <div class="booking-info-value"><?= htmlspecialchars(
+              (!empty($current_booking['pickup_lat']) && !empty($current_booking['pickup_lng'])) 
+                ? getLocationFromCoordinates($current_booking['pickup_lat'], $current_booking['pickup_lng'])
+                : $current_booking['location']
+            ); ?></div>
           </div>
         </div>
 
         <div class="booking-info-item">
-          <i class="bi bi-flag-fill" style="color: #10b981;"></i>
+          <i class="bi bi-flag-fill" style="color: #86efac;"></i>
           <div>
             <div class="booking-info-label">Destination</div>
-            <div class="booking-info-value"><?= htmlspecialchars($current_booking['destination']); ?></div>
+            <div class="booking-info-value"><?= htmlspecialchars(
+              (!empty($current_booking['dest_lat']) && !empty($current_booking['dest_lng'])) 
+                ? getLocationFromCoordinates($current_booking['dest_lat'], $current_booking['dest_lng'])
+                : $current_booking['destination']
+            ); ?></div>
           </div>
         </div>
 
         <div class="booking-info-item">
-          <i class="bi bi-calendar-event" style="color: #f59e0b;"></i>
+          <i class="bi bi-calendar-event" style="color: #86efac;"></i>
           <div>
             <div class="booking-info-label">Booking Time</div>
             <div class="booking-info-value"><?= date('M d, Y h:i A', strtotime($current_booking['booking_time'])); ?></div>
@@ -135,14 +193,14 @@ $stmt->close();
 
       <?php if (!empty($current_booking['driver_id'])): ?>
         <!-- Driver Information Section -->
-        <div style="margin-top: 24px; padding-top: 24px; border-top: 2px solid rgba(102, 126, 234, 0.2);">
-          <h4 style="color: #667eea; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+        <div style="margin-top: 24px; padding-top: 24px; border-top: 2px solid rgba(134, 239, 172, 0.2);">
+          <h4 style="color: #86efac; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
             <i class="bi bi-person-badge"></i>
             Driver Information
           </h4>
           <div class="booking-info-grid">
             <div class="booking-info-item">
-              <i class="bi bi-person-circle" style="color: #667eea;"></i>
+              <i class="bi bi-person-circle" style="color: #86efac;"></i>
               <div>
                 <div class="booking-info-label">Driver Name</div>
                 <div class="booking-info-value"><?= htmlspecialchars($current_booking['driver_name'] ?? 'N/A'); ?></div>
@@ -150,12 +208,12 @@ $stmt->close();
             </div>
 
             <div class="booking-info-item">
-              <i class="bi bi-telephone-fill" style="color: #10b981;"></i>
+              <i class="bi bi-telephone-fill" style="color: #86efac;"></i>
               <div>
                 <div class="booking-info-label">Phone Number</div>
                 <div class="booking-info-value">
                   <?php if (!empty($current_booking['driver_phone'])): ?>
-                    <a href="tel:<?= htmlspecialchars($current_booking['driver_phone']); ?>" style="color: #10b981; text-decoration: none; font-weight: 600;">
+                    <a href="tel:<?= htmlspecialchars($current_booking['driver_phone']); ?>" style="color: #86efac; text-decoration: none; font-weight: 600;">
                       <?= htmlspecialchars($current_booking['driver_phone']); ?>
                     </a>
                   <?php else: ?>
@@ -167,7 +225,7 @@ $stmt->close();
 
             <?php if (!empty($current_booking['vehicle_info'])): ?>
             <div class="booking-info-item">
-              <i class="bi bi-truck" style="color: #ef4444;"></i>
+              <i class="bi bi-truck" style="color: #86efac;"></i>
               <div>
                 <div class="booking-info-label">Vehicle Info</div>
                 <div class="booking-info-value"><?= htmlspecialchars($current_booking['vehicle_info']); ?></div>
@@ -183,15 +241,17 @@ $stmt->close();
         $status = strtolower($current_booking['status']);
         $status_class = 'status-pending';
         $status_icon = 'bi-hourglass-split';
+        $status_text = htmlspecialchars(ucfirst($status));
         
         if ($status === 'accepted') {
           $status_class = 'status-accepted';
           $status_icon = 'bi-check-circle-fill';
+          $status_text = 'On the way to the location';
         }
         ?>
         <span class="booking-status-badge <?= $status_class; ?>">
           <i class="bi <?= $status_icon; ?>"></i>
-          <?= htmlspecialchars(ucfirst($status)); ?>
+          <?= $status_text; ?>
         </span>
       </div>
 
@@ -243,6 +303,18 @@ $stmt->close();
       <a href="../../pages/passenger/trips-history.php" class="service-btn">
         <i class="bi bi-eye me-2"></i>
         View History
+      </a>
+    </div>
+
+    <div class="service-card">
+      <div class="service-icon">
+        <i class="bi bi-flag"></i>
+      </div>
+      <h3>Report an Issue</h3>
+      <p>Report any issues or concerns about your rides, drivers, or our service.</p>
+      <a href="../../pages/passenger/passenger-report.php" class="service-btn">
+        <i class="bi bi-exclamation-circle me-2"></i>
+        Submit Report
       </a>
     </div>
   </div>
@@ -304,6 +376,7 @@ function updateBookingDisplay(booking) {
   const status = booking.status.toLowerCase();
   const statusClass = status === 'accepted' ? 'status-accepted' : 'status-pending';
   const statusIcon = status === 'accepted' ? 'bi-check-circle-fill' : 'bi-hourglass-split';
+  const statusText = status === 'accepted' ? 'On the way to the location' : status.charAt(0).toUpperCase() + status.slice(1);
   
   // Format booking time
   const bookingDate = new Date(booking.booking_time);
@@ -319,31 +392,31 @@ function updateBookingDisplay(booking) {
   let driverHtml = '';
   if (booking.driver_id) {
     driverHtml = `
-      <div style="margin-top: 24px; padding-top: 24px; border-top: 2px solid rgba(102, 126, 234, 0.2);">
-        <h4 style="color: #667eea; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+      <div style="margin-top: 24px; padding-top: 24px; border-top: 2px solid rgba(134, 239, 172, 0.2);">
+        <h4 style="color: #86efac; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
           <i class="bi bi-person-badge"></i>
           Driver Information
         </h4>
         <div class="booking-info-grid">
           <div class="booking-info-item">
-            <i class="bi bi-person-circle" style="color: #667eea;"></i>
+            <i class="bi bi-person-circle" style="color: #86efac;"></i>
             <div>
               <div class="booking-info-label">Driver Name</div>
               <div class="booking-info-value">${booking.driver_name || 'N/A'}</div>
             </div>
           </div>
           <div class="booking-info-item">
-            <i class="bi bi-telephone-fill" style="color: #10b981;"></i>
+            <i class="bi bi-telephone-fill" style="color: #86efac;"></i>
             <div>
               <div class="booking-info-label">Phone Number</div>
               <div class="booking-info-value">
-                ${booking.driver_phone ? `<a href="tel:${booking.driver_phone}" style="color: #10b981; text-decoration: none; font-weight: 600;">${booking.driver_phone}</a>` : 'N/A'}
+                ${booking.driver_phone ? `<a href="tel:${booking.driver_phone}" style="color: #86efac; text-decoration: none; font-weight: 600;">${booking.driver_phone}</a>` : 'N/A'}
               </div>
             </div>
           </div>
           ${booking.vehicle_info ? `
           <div class="booking-info-item">
-            <i class="bi bi-truck" style="color: #ef4444;"></i>
+            <i class="bi bi-truck" style="color: #86efac;"></i>
             <div>
               <div class="booking-info-label">Vehicle Info</div>
               <div class="booking-info-value">${booking.vehicle_info}</div>
@@ -358,28 +431,28 @@ function updateBookingDisplay(booking) {
   bookingContent.innerHTML = `
     <div class="booking-info-grid">
       <div class="booking-info-item">
-        <i class="bi bi-hash" style="color: #667eea;"></i>
+        <i class="bi bi-hash" style="color: #86efac;"></i>
         <div>
           <div class="booking-info-label">Booking ID</div>
           <div class="booking-info-value">#${booking.id}</div>
         </div>
       </div>
       <div class="booking-info-item">
-        <i class="bi bi-geo-alt-fill" style="color: #ef4444;"></i>
+        <i class="bi bi-geo-alt-fill" style="color: #86efac;"></i>
         <div>
           <div class="booking-info-label">Pickup Location</div>
           <div class="booking-info-value">${booking.location}</div>
         </div>
       </div>
       <div class="booking-info-item">
-        <i class="bi bi-flag-fill" style="color: #10b981;"></i>
+        <i class="bi bi-flag-fill" style="color: #86efac;"></i>
         <div>
           <div class="booking-info-label">Destination</div>
           <div class="booking-info-value">${booking.destination}</div>
         </div>
       </div>
       <div class="booking-info-item">
-        <i class="bi bi-calendar-event" style="color: #f59e0b;"></i>
+        <i class="bi bi-calendar-event" style="color: #86efac;"></i>
         <div>
           <div class="booking-info-label">Booking Time</div>
           <div class="booking-info-value">${formattedDate}</div>
@@ -390,7 +463,7 @@ function updateBookingDisplay(booking) {
     <div>
       <span class="booking-status-badge ${statusClass}">
         <i class="bi ${statusIcon}"></i>
-        ${status.charAt(0).toUpperCase() + status.slice(1)}
+        ${statusText}
       </span>
     </div>
     <div class="booking-actions">

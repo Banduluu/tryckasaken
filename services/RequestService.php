@@ -121,7 +121,7 @@ class RequestService {
      * Get driver information
      */
     private function getDriverInfo() {
-        $query = "SELECT verification_status, is_online FROM drivers WHERE user_id = ?";
+        $query = "SELECT verification_status, is_online FROM rfid_drivers WHERE user_id = ?";
         $stmt = $this->conn->prepare($query);
         $stmt->bind_param("i", $this->driver_id);
         $stmt->execute();

@@ -31,6 +31,55 @@ if ($searchQuery) {
 
 $whereClause = !empty($whereConditions) ? 'WHERE ' . implode(' AND ', $whereConditions) : '';
 
+// Function to convert coordinates to location name using reverse geocoding
+function getLocationFromCoordinates($lat, $lng) {
+    try {
+        // Use Nominatim (OpenStreetMap) for reverse geocoding
+        $url = "https://nominatim.openstreetmap.org/reverse?format=json&lat={$lat}&lon={$lng}";
+        
+        $context = stream_context_create([
+            'http' => [
+                'timeout' => 5,
+                'user_agent' => 'TrycKaSaken/1.0'
+            ]
+        ]);
+        
+        $response = @file_get_contents($url, false, $context);
+        if ($response === false) {
+            return "Lat: {$lat}, Lng: {$lng}";
+        }
+        
+        $data = json_decode($response, true);
+        if ($data && isset($data['address'])) {
+            $address = $data['address'];
+            
+            // Build location string from address components
+            $locationParts = [];
+            
+            if (isset($address['road'])) {
+                $locationParts[] = $address['road'];
+            }
+            if (isset($address['village'])) {
+                $locationParts[] = $address['village'];
+            }
+            if (isset($address['suburb'])) {
+                $locationParts[] = $address['suburb'];
+            }
+            if (isset($address['city'])) {
+                $locationParts[] = $address['city'];
+            }
+            
+            if (!empty($locationParts)) {
+                return implode(', ', $locationParts);
+            }
+        }
+        
+        return "Lat: {$lat}, Lng: {$lng}";
+    } catch (Exception $e) {
+        return "Lat: {$lat}, Lng: {$lng}";
+    }
+}
+
 // Get bookings with passenger info
 $query = "SELECT b.*, p.name as passenger_name, p.email as passenger_email, p.phone as passenger_phone,
                  d.name as driver_name
@@ -111,8 +160,16 @@ renderAdminHeader("Booking Management", "bookings");
               </td>
               <td>
                 <div>
-                  <i class="bi bi-geo-alt text-success"></i> <?= htmlspecialchars($booking['location']) ?><br>
-                  <i class="bi bi-flag text-primary"></i> <?= htmlspecialchars($booking['destination']) ?>
+                  <i class="bi bi-geo-alt text-success"></i> <?= htmlspecialchars(
+                    (!empty($booking['pickup_lat']) && !empty($booking['pickup_lng'])) 
+                      ? getLocationFromCoordinates($booking['pickup_lat'], $booking['pickup_lng'])
+                      : $booking['location']
+                  ) ?><br>
+                  <i class="bi bi-flag text-primary"></i> <?= htmlspecialchars(
+                    (!empty($booking['dest_lat']) && !empty($booking['dest_lng'])) 
+                      ? getLocationFromCoordinates($booking['dest_lat'], $booking['dest_lng'])
+                      : $booking['destination']
+                  ) ?>
                 </div>
               </td>
               <td>
