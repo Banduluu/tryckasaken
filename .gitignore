@@ -30,7 +30,6 @@ php_errors.log
 # Cache and Build Files
 /cache/
 /tmp/
-/temp/
 /storage/logs/*
 !/storage/logs/.gitkeep
 /storage/cache/*
