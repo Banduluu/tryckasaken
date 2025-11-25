@@ -85,16 +85,22 @@ function renderAdminHeader($pageTitle = "Admin Dashboard", $currentPage = "dashb
             <a href="drivers-verification.php" class="nav-link-btn <?= $currentPage === 'verification' || $currentPage === 'driver_verification' ? 'active' : '' ?>">
               <i class="bi bi-shield-check"></i> Verification
             </a>
+            <a href="rfid-management.php" class="nav-link-btn <?= $currentPage === 'rfid' ? 'active' : '' ?>">
+              <i class="bi bi-credit-card-2-front"></i> RFID Cards
+            </a>
           </div>
         </div>
       </div>
       
       <div class="col-md-4">
         <div class="nav-section">
-          <h5><i class="bi bi-graph-up"></i> Analytics</h5>
+          <h5><i class="bi bi-graph-up"></i> Analytics & Logs</h5>
           <div class="nav-links">
             <a href="analytics-dashboard.php" class="nav-link-btn <?= $currentPage === 'analytics' ? 'active' : '' ?>">
               <i class="bi bi-bar-chart"></i> Analytics
+            </a>
+            <a href="action-logs.php" class="nav-link-btn <?= $currentPage === 'logs' ? 'active' : '' ?>">
+              <i class="bi bi-journal-text"></i> Action Logs
             </a>
           </div>
         </div>

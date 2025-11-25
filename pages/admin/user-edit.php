@@ -47,12 +47,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->close();
     
     if (empty($errors)) {
+        // Get old values for comparison
+        $oldStmt = $conn->prepare("SELECT name, email, phone, status, user_type FROM users WHERE user_id = ?");
+        $oldStmt->bind_param("i", $userId);
+        $oldStmt->execute();
+        $oldData = $oldStmt->get_result()->fetch_assoc();
+        $oldStmt->close();
+        
         // Update user
         $stmt = $conn->prepare("UPDATE users SET name = ?, email = ?, phone = ?, status = ?, user_type = ? WHERE user_id = ?");
         $stmt->bind_param("sssssi", $name, $email, $phone, $status, $userType, $userId);
         
         if ($stmt->execute()) {
             $stmt->close();
+            
+            // Build change details
+            $changes = [];
+            if ($oldData['name'] != $name) $changes[] = "name: '{$oldData['name']}' → '{$name}'";
+            if ($oldData['email'] != $email) $changes[] = "email: '{$oldData['email']}' → '{$email}'";
+            if ($oldData['phone'] != $phone) $changes[] = "phone: '{$oldData['phone']}' → '{$phone}'";
+            if ($oldData['status'] != $status) $changes[] = "status: '{$oldData['status']}' → '{$status}'";
+            if ($oldData['user_type'] != $userType) $changes[] = "type: '{$oldData['user_type']}' → '{$userType}'";
+            
+            if (!empty($changes)) {
+                // Log to admin_action_logs
+                $adminId = $_SESSION['user_id'];
+                $actionType = 'user_edit';
+                $actionDetails = "Updated user: {$name} (ID: {$userId}). Changes: " . implode(', ', $changes);
+                
+                $logStmt = $conn->prepare("INSERT INTO admin_action_logs (admin_id, action_type, target_user_id, action_details) VALUES (?, ?, ?, ?)");
+                $logStmt->bind_param("isis", $adminId, $actionType, $userId, $actionDetails);
+                $logStmt->execute();
+                $logStmt->close();
+            }
+            
             $_SESSION['success_message'] = 'User information updated successfully!';
             header("Location: user-details.php?id=$userId");
             exit;
