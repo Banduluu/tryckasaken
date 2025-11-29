@@ -43,26 +43,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get only verified drivers with online status and active trip info
+// Get only verified drivers with online status, active trip info, and queue position
 $query = "SELECT 
-    u.*, 
     d.driver_id,
+    u.user_id, 
+    u.user_type,
+    u.name,
+    u.email,
+    u.phone,
+    u.password,
+    u.is_verified,
+    u.is_active,
+    u.created_at,
+    u.status,
     d.license_number,
     d.tricycle_info,
     d.verification_status, 
     d.is_online,
-    COUNT(CASE WHEN b.status = 'accepted' THEN 1 END) as active_trips,
-    COUNT(CASE WHEN b.status = 'completed' THEN 1 END) as completed_trips
+    (SELECT COUNT(*) FROM tricycle_bookings WHERE driver_id = d.driver_id AND status = 'accepted') as active_trips,
+    (SELECT COUNT(*) FROM tricycle_bookings WHERE driver_id = d.driver_id AND status = 'completed') as completed_trips
 FROM rfid_drivers d
 INNER JOIN users u ON d.user_id = u.user_id
-LEFT JOIN tricycle_bookings b ON d.driver_id = b.driver_id
 WHERE d.verification_status = 'verified'
-GROUP BY d.driver_id, u.user_id, u.user_type, u.name, u.email, u.phone, u.password, 
-         d.license_number, d.tricycle_info, d.verification_status, u.is_verified, u.is_active, 
-         u.created_at, u.status, d.is_online
-ORDER BY d.is_online DESC, u.user_id DESC";
+ORDER BY d.is_online DESC, u.user_id ASC";
+
 $result = $conn->query($query);
-$drivers = $result->fetch_all(MYSQLI_ASSOC);
+
+if (!$result) {
+    error_log("Query error: " . $conn->error);
+    $drivers = [];
+} else {
+    $all_drivers = $result->fetch_all(MYSQLI_ASSOC);
+    error_log("Total drivers from query: " . count($all_drivers));
+    foreach ($all_drivers as $d) {
+        error_log("  - Driver: {$d['name']} (user_id: {$d['user_id']}, driver_id: {$d['driver_id']})");
+    }
+    
+    // Remove duplicates - keep only one per user_id
+    $drivers = [];
+    $seen_users = [];
+    foreach ($all_drivers as $driver) {
+        if (!in_array($driver['user_id'], $seen_users)) {
+            $drivers[] = $driver;
+            $seen_users[] = $driver['user_id'];
+        }
+    }
+    error_log("Drivers after dedup: " . count($drivers));
+}
+
+// Assign sequential queue positions based on who is online and available
+$queue_position = 1;
+foreach ($drivers as &$driver) {
+    $driver['queue_position'] = null;
+    // Assign queue position to online drivers without active trips
+    if ($driver['is_online'] && intval($driver['active_trips']) == 0) {
+        $driver['queue_position'] = $queue_position;
+        $queue_position++;
+    }
+}
 
 // Separate active and suspended drivers
 $active_drivers = array_filter($drivers, function($driver) {
@@ -93,11 +131,14 @@ $online_drivers = [];
 $on_trip_drivers = [];
 $offline_drivers = [];
 
+$queue_pos = 1;
 foreach ($active_drivers as $driver) {
     if ($driver['active_trips'] > 0) {
         $on_trip_drivers[] = $driver;
     } elseif ($driver['is_online']) {
+        $driver['queue_position'] = $queue_pos;
         $online_drivers[] = $driver;
+        $queue_pos++;
     } else {
         $offline_drivers[] = $driver;
     }
@@ -223,6 +264,7 @@ $offline_count = count($offline_drivers);
               <th><i class="bi bi-person"></i> Name</th>
               <th><i class="bi bi-envelope"></i> Email</th>
               <th><i class="bi bi-telephone"></i> Phone</th>
+              <th><i class="bi bi-queue-front"></i> Queue Position</th>
               <th><i class="bi bi-wifi"></i> Online Status</th>
               <th><i class="bi bi-circle"></i> Status</th>
               <th><i class="bi bi-gear"></i> Actions</th>
@@ -260,6 +302,25 @@ $offline_count = count($offline_drivers);
                 </td>
                 <td><?= htmlspecialchars($driver['email']) ?></td>
                 <td><?= htmlspecialchars($driver['phone']) ?></td>
+                <td>
+                  <?php if ($has_active) { ?>
+                    <span class="badge bg-warning text-dark" style="font-size: 0.9rem;">
+                      <i class="bi bi-car-front-fill"></i> On Trip
+                    </span>
+                  <?php } elseif ($is_online && isset($driver['queue_position'])) { ?>
+                    <span class="badge bg-success" style="font-size: 0.9rem;">
+                      <i class="bi bi-circle-fill"></i> POSITION #<?= $driver['queue_position'] ?>
+                    </span>
+                  <?php } elseif ($is_online) { ?>
+                    <span class="badge bg-secondary" style="font-size: 0.9rem;">
+                      <i class="bi bi-circle"></i> No Queue
+                    </span>
+                  <?php } else { ?>
+                    <span class="badge bg-secondary" style="font-size: 0.9rem;">
+                      <i class="bi bi-circle"></i> Offline
+                    </span>
+                  <?php } ?>
+                </td>
                 <td>
                   <span class="status-badge <?= $status_class ?>">
                     <i class="bi bi-<?= $status_icon ?>"></i>
@@ -320,6 +381,7 @@ $offline_count = count($offline_drivers);
                 <th><i class="bi bi-person"></i> Name</th>
                 <th><i class="bi bi-envelope"></i> Email</th>
                 <th><i class="bi bi-telephone"></i> Phone</th>
+                <th><i class="bi bi-queue-front"></i> Queue Position</th>
                 <th><i class="bi bi-circle"></i> Status</th>
                 <th><i class="bi bi-gear"></i> Actions</th>
               </tr>
@@ -331,6 +393,11 @@ $offline_count = count($offline_drivers);
                   <td><?= htmlspecialchars($driver['name']) ?></td>
                   <td><?= htmlspecialchars($driver['email']) ?></td>
                   <td><?= htmlspecialchars($driver['phone']) ?></td>
+                  <td>
+                    <span class="badge bg-success" style="font-size: 0.9rem;">
+                      <i class="bi bi-circle-fill"></i> POSITION #<?= isset($driver['queue_position']) ? $driver['queue_position'] : '1' ?>
+                    </span>
+                  </td>
                   <td>
                     <span class="status-badge status-<?= $driver['status'] ?>">
                       <?= ucfirst($driver['status']) ?>

@@ -131,7 +131,39 @@ if (isset($_POST['complete_booking'])) {
         $update_stmt = $conn->prepare("UPDATE tricycle_bookings SET status = 'completed' WHERE id = ?");
         $update_stmt->bind_param("i", $booking_id);
         if ($update_stmt->execute()) {
-            $_SESSION['success_message'] = "Ride completed successfully! Thank you for the service.";
+            // After completing, try to assign next pending booking from queue
+            $nextBookingQuery = "SELECT b.id, b.user_id, b.location as pickup_location, b.destination as dropoff_location, b.booking_time 
+                                 FROM tricycle_bookings b
+                                 WHERE b.status = 'pending' 
+                                 AND b.driver_id IS NULL
+                                 ORDER BY b.booking_time ASC 
+                                 LIMIT 1";
+            $nextStmt = $conn->prepare($nextBookingQuery);
+            $nextStmt->execute();
+            $nextResult = $nextStmt->get_result();
+            
+            if ($nextResult->num_rows > 0) {
+                $nextBooking = $nextResult->fetch_assoc();
+                
+                // Assign this driver to the next booking
+                $assignQuery = "UPDATE tricycle_bookings 
+                                SET driver_id = ?, 
+                                    status = 'accepted'
+                                WHERE id = ?";
+                
+                $assignStmt = $conn->prepare($assignQuery);
+                $assignStmt->bind_param("ii", $driver_id, $nextBooking['id']);
+                
+                if ($assignStmt->execute() && $assignStmt->affected_rows > 0) {
+                    $_SESSION['success_message'] = "Ride completed successfully! You have been assigned to a new booking.";
+                } else {
+                    $_SESSION['success_message'] = "Ride completed successfully! No pending bookings at this moment.";
+                }
+                $assignStmt->close();
+            } else {
+                $_SESSION['success_message'] = "Ride completed successfully! Thank you for the service.";
+            }
+            $nextStmt->close();
         } else {
             $_SESSION['error_message'] = "Failed to complete ride.";
         }

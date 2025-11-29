@@ -155,6 +155,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // If currently online (1), make them offline
     $actualAction = ($driver['is_online'] == 0) ? 'online' : 'offline';
     
+    // If driver is coming online, try to assign them to the first pending booking
+    $bookingAssigned = false;
+    $assignedBooking = null;
+    
+    if ($actualAction === 'online') {
+        // Get the first pending booking
+        $bookingQuery = "SELECT b.id, b.user_id, b.location as pickup_location, b.destination as dropoff_location, b.booking_time 
+                         FROM tricycle_bookings b
+                         WHERE b.status = 'pending' 
+                         AND b.driver_id IS NULL
+                         ORDER BY b.booking_time ASC 
+                         LIMIT 1";
+        $bookingStmt = $conn->prepare($bookingQuery);
+        $bookingStmt->execute();
+        $bookingResult = $bookingStmt->get_result();
+        
+        if ($bookingResult->num_rows > 0) {
+            $booking = $bookingResult->fetch_assoc();
+            $bookingStmt->close();
+            
+            // Assign driver to this booking
+            $assignQuery = "UPDATE tricycle_bookings 
+                            SET driver_id = ?, 
+                                status = 'accepted'
+                            WHERE id = ?";
+            
+            $assignStmt = $conn->prepare($assignQuery);
+            $assignStmt->bind_param("ii", $driver['driver_id'], $booking['id']);
+            
+            if ($assignStmt->execute() && $assignStmt->affected_rows > 0) {
+                $bookingAssigned = true;
+                $assignedBooking = $booking;
+            }
+            $assignStmt->close();
+        } else {
+            $bookingStmt->close();
+        }
+    }
+    
     $insert_query = "INSERT INTO driver_attendance (driver_id, user_id, action, timestamp, rfid_uid) 
                      VALUES (?, ?, ?, ?, ?)";
     
@@ -177,8 +216,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $update_stmt->execute();
         $update_stmt->close();
         
-        ob_end_clean();
-        echo json_encode([
+        // Prepare response with booking information if assigned
+        $response = [
             'success' => true, 
             'message' => 'Success',
             'action' => $actualAction,
@@ -188,7 +227,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'tricycle_info' => $driver['tricycle_info'],
                 'action' => $actualAction
             ]
-        ]);
+        ];
+        
+        if ($bookingAssigned && $assignedBooking) {
+            $response['booking_assigned'] = true;
+            $response['booking'] = [
+                'id' => $assignedBooking['id'],
+                'user_id' => $assignedBooking['user_id'],
+                'pickup_location' => $assignedBooking['pickup_location'],
+                'dropoff_location' => $assignedBooking['dropoff_location'],
+                'booking_time' => $assignedBooking['booking_time']
+            ];
+            $response['message'] = 'You have been assigned to a booking!';
+        } else {
+            $response['booking_assigned'] = false;
+        }
+        
+        ob_end_clean();
+        echo json_encode($response);
     } else {
         ob_end_clean();
         echo json_encode(['success' => false, 'message' => 'Error']);
