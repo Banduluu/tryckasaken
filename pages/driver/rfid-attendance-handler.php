@@ -13,6 +13,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
+// Error handling
+set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    ob_end_clean();
+    http_response_code(500);
+    echo json_encode([
+        'success' => false, 
+        'message' => 'PHP Error: ' . $errstr,
+        'debug' => [
+            'file' => $errfile,
+            'line' => $errline
+        ]
+    ]);
+    exit();
+});
+
 require_once '../../config/Database.php';
 
 $database = new Database();
@@ -21,7 +36,7 @@ $conn = $database->getConnection();
 if (!$conn) {
     ob_end_clean();
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'DB Error']);
+    echo json_encode(['success' => false, 'message' => 'DB Connection Error']);
     exit();
 }
 
@@ -47,12 +62,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
     
-    $query = "SELECT u.user_id, u.name, u.phone, d.driver_id, d.verification_status, d.picture_path, d.tricycle_info, d.is_online, d.card_status
+    $query = "SELECT u.user_id, u.name, u.phone, d.driver_id, d.verification_status, d.picture_path, d.tricycle_info, d.is_online
               FROM users u 
               JOIN rfid_drivers d ON u.user_id = d.user_id
               WHERE d.rfid_uid = ? LIMIT 1";
     
     $stmt = $conn->prepare($query);
+    if (!$stmt) {
+        ob_end_clean();
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'Prepare Error: ' . $conn->error]);
+        $conn->close();
+        exit();
+    }
+    
     $stmt->bind_param("s", $uid);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -97,14 +120,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $driver = $result->fetch_assoc();
     $stmt->close();
     
-    // Check if card is blocked
-    if (isset($driver['card_status']) && $driver['card_status'] !== 'active') {
-        ob_end_clean();
-        $statusMessage = $driver['card_status'] === 'stolen' ? 'Card reported stolen' : 
-                        ($driver['card_status'] === 'lost' ? 'Card reported lost' : 'Card blocked');
-        echo json_encode(['success' => false, 'message' => $statusMessage]);
-        $conn->close();
-        exit();
+    // Check if card_status column exists and check if card is blocked
+    $checkCardStatusQuery = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='rfid_drivers' AND COLUMN_NAME='card_status'";
+    $cardStatusExists = $conn->query($checkCardStatusQuery)->num_rows > 0;
+    
+    if ($cardStatusExists) {
+        $cardCheckQuery = "SELECT card_status FROM rfid_drivers WHERE driver_id = ?";
+        $cardStmt = $conn->prepare($cardCheckQuery);
+        $cardStmt->bind_param("i", $driver['driver_id']);
+        $cardStmt->execute();
+        $cardResult = $cardStmt->get_result();
+        $cardData = $cardResult->fetch_assoc();
+        $cardStmt->close();
+        
+        if ($cardData && isset($cardData['card_status']) && $cardData['card_status'] !== 'active') {
+            ob_end_clean();
+            $statusMessage = $cardData['card_status'] === 'stolen' ? 'Card reported stolen' : 
+                            ($cardData['card_status'] === 'lost' ? 'Card reported lost' : 'Card blocked');
+            echo json_encode(['success' => false, 'message' => $statusMessage]);
+            $conn->close();
+            exit();
+        }
     }
     
     if ($driver['verification_status'] !== 'verified') {

@@ -56,10 +56,10 @@ const int   daylightOffset_sec = 0;
 
 // ================== SERVER API ENDPOINT ==================
 // IMPORTANT: CHANGE THIS TO YOUR SERVER URL
-const char* serverURL = "http://192.168.1.8/tryckasaken/pages/driver/rfid-attendance-handler.php";
-// Your current server IP address: 192.168.1.8
+const char* serverURL = "http://192.168.1.20/finals/pages/driver/rfid-attendance-handler.php";
+// Your current server IP address: 192.168.1.20
 
-const char* learningStatusURL = "http://192.168.1.8/tryckasaken/pages/driver/rfid-learning-handler.php?action=status";
+const char* learningStatusURL = "http://192.168.1.20/finals/pages/driver/rfid-learning-handler.php?action=status";
 
 // ================== WiFi NETWORKS ==================
 struct WiFiNetwork {
@@ -68,7 +68,12 @@ struct WiFiNetwork {
 };
 
 WiFiNetwork networks[] = {
-  {"Wu-Tang LAN", "Passkeys@1234"},
+  {"KAY DIDAY ITO", "Did@ylangsakalam01"},
+  // {"Jerick", "onetwo82"},
+  // {"LAB1", "PLDTWIFIVUu8M@"},
+  // {"Vincent's Iphone", "12345678"},
+  // {"Bluetooth", "onetoeight"},
+  // {"Jc", "1234567890"}
 };
 
 int totalNetworks = sizeof(networks) / sizeof(networks[0]);
@@ -386,7 +391,7 @@ void loop() {
         } else {
           // Learning mode is OFF - reject unknown card
           display.clear();
-          display.setFont(ArialMT_Plain_15);
+          display.setFont(ArialMT_Plain_16);
           drawCenteredText("ACCESS DENIED", 0, 2);
           
           display.setFont(ArialMT_Plain_10);

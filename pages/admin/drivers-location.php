@@ -11,69 +11,41 @@ $LIPA_CENTER_LAT = 13.941876;
 $LIPA_CENTER_LNG = 121.164421;
 $LIPA_RADIUS_KM = 8;
 
-// Function to get location name from coordinates using reverse geocoding
-function getLocationFromCoordinates($lat, $lng) {
-    $url = "https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lng";
-    
-    $context = stream_context_create([
-        'http' => [
-            'method' => 'GET',
-            'timeout' => 5,
-            'user_agent' => 'Mozilla/5.0'
-        ]
-    ]);
-    
-    try {
-        $response = @file_get_contents($url, false, $context);
-        if ($response) {
-            $data = json_decode($response, true);
-            if (isset($data['address'])) {
-                $address = $data['address'];
-                // Construct location name
-                $location = '';
-                if (isset($address['road'])) $location .= $address['road'] . ', ';
-                if (isset($address['suburb'])) $location .= $address['suburb'] . ', ';
-                if (isset($address['city'])) $location .= $address['city'];
-                return trim($location, ', ') ?: 'Lipa City, Batangas';
-            }
-        }
-    } catch (Exception $e) {
-        return 'Lipa City, Batangas';
-    }
-    
-    return 'Lipa City, Batangas';
-}
-
-// Get all online drivers - using default Lipa City coordinates
+// Get initial driver data for server-side rendering (fallback)
 $query = "SELECT 
+    d.driver_id,
     u.user_id,
     u.name,
     u.email,
     u.phone,
-    d.driver_id,
-    d.is_online,
     d.tricycle_info,
-    COUNT(CASE WHEN b.status = 'accepted' THEN 1 END) as active_trips
+    d.license_number,
+    d.is_online,
+    COUNT(DISTINCT CASE WHEN b.status IN ('accepted', 'in-transit') THEN b.id END) as active_trips,
+    dl.latitude,
+    dl.longitude,
+    dl.accuracy,
+    dl.timestamp as location_timestamp,
+    IF(dl.latitude IS NOT NULL, 1, 0) as has_location,
+    IF(dl.timestamp IS NOT NULL, TIMESTAMPDIFF(SECOND, dl.timestamp, NOW()), NULL) as location_age_seconds
 FROM rfid_drivers d
 INNER JOIN users u ON d.user_id = u.user_id
-LEFT JOIN tricycle_bookings b ON d.driver_id = b.driver_id
+LEFT JOIN tricycle_bookings b ON d.driver_id = b.driver_id AND b.status IN ('accepted', 'in-transit')
+LEFT JOIN driver_locations dl ON d.driver_id = dl.driver_id AND dl.id = (
+    SELECT MAX(id) FROM driver_locations WHERE driver_id = d.driver_id AND timestamp > DATE_SUB(NOW(), INTERVAL 1 HOUR)
+)
 WHERE d.verification_status = 'verified' AND u.status = 'active' AND d.is_online = 1
 GROUP BY d.driver_id, u.user_id
-ORDER BY d.is_online DESC";
+ORDER BY dl.timestamp DESC, u.name ASC";
 
 $result = $conn->query($query);
-$drivers = $result->fetch_all(MYSQLI_ASSOC);
+$drivers_data = [];
 
-// Add mock GPS coordinates and location names for demonstration
-$online_drivers = array_map(function($driver, $index) {
-    $baseLatitude = 13.941876;
-    $baseLongitude = 121.164421;
-    // Generate random coordinates around Lipa City
-    $driver['latitude'] = $baseLatitude + (rand(-100, 100) / 10000);
-    $driver['longitude'] = $baseLongitude + (rand(-100, 100) / 10000);
-    $driver['location_name'] = getLocationFromCoordinates($driver['latitude'], $driver['longitude']);
-    return $driver;
-}, $drivers, array_keys($drivers));
+while ($row = $result->fetch_assoc()) {
+    $drivers_data[] = $row;
+}
+
+$online_drivers = $drivers_data;
 
 renderAdminHeader("Drivers Location", "drivers");
 ?>
@@ -133,7 +105,7 @@ renderAdminHeader("Drivers Location", "drivers");
         <i class="bi bi-telephone"></i>
       </div>
       <div class="stat-content">
-        <div class="stat-value"><?= count($drivers) ?></div>
+        <div class="stat-value"><?= count($online_drivers) ?></div>
         <div class="stat-label">Total Verified Drivers</div>
       </div>
     </div>
@@ -173,7 +145,7 @@ renderAdminHeader("Drivers Location", "drivers");
                 </small>
                 <small class="text-muted d-block">
                   <i class="bi bi-geo-alt"></i> 
-                  <?= htmlspecialchars($driver['location_name']) ?>
+                  Lat: <?= number_format($driver['latitude'], 4) ?>, Lng: <?= number_format($driver['longitude'], 4) ?>
                 </small>
               </div>
               <div class="driver-status">
@@ -250,6 +222,8 @@ const LIPA_CENTER_LNG = <?= $LIPA_CENTER_LNG; ?>;
 const LIPA_RADIUS_KM = <?= $LIPA_RADIUS_KM; ?>;
 
 let map, markers = {}, lipaCircle;
+let currentMarkers = {};
+let refreshInterval = null;
 
 // Initialize map centered on Lipa City
 map = L.map('map').setView([LIPA_CENTER_LAT, LIPA_CENTER_LNG], 13);
@@ -289,43 +263,196 @@ const tripIcon = L.icon({
   shadowSize: [41, 41]
 });
 
-// Driver data
-const driverData = <?= json_encode($online_drivers) ?>;
+// Fetch driver locations from API
+function fetchDriverLocations() {
+  fetch('api-get-driver-locations.php')
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('API returned status ' + response.status);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('API Response:', data);
+      if (data.success) {
+        console.log('✓ Fetched ' + data.count + ' drivers at ' + data.timestamp);
+        console.log('Total drivers in response: ' + data.drivers.length);
+        if (data.drivers && data.drivers.length > 0) {
+          let withLocation = 0;
+          data.drivers.forEach((d, i) => {
+            if (d.has_location) {
+              withLocation++;
+              console.log(`  ✓ ${d.name}: Lat ${d.latitude}, Lng ${d.longitude}, Age: ${d.location_age_seconds}s`);
+            } else {
+              console.log(`  ✗ ${d.name}: No location yet`);
+            }
+          });
+          console.log(`Total with location: ${withLocation}/${data.drivers.length}`);
+        } else {
+          console.warn('No drivers returned');
+        }
+        updateMapWithDrivers(data.drivers);
+        updateDriversList(data.drivers);
+      } else {
+        console.error('✗ API Error:', data.error);
+      }
+    })
+    .catch(error => {
+      console.error('✗ Error fetching driver locations:', error);
+    });
+}
 
-// Add markers for each driver
-driverData.forEach(driver => {
-  const icon = driver.active_trips > 0 ? tripIcon : onlineIcon;
-  const status = driver.active_trips > 0 ? 'On Trip' : 'Available';
+// Update map with driver markers
+function updateMapWithDrivers(drivers) {
+  // Remove old markers
+  Object.values(currentMarkers).forEach(marker => {
+    map.removeLayer(marker);
+  });
+  currentMarkers = {};
+
+  if (!drivers || drivers.length === 0) {
+    console.warn('No online drivers found');
+    return;
+  }
+
+  let markersAdded = 0;
+
+  // Add new markers for each driver with valid location
+  drivers.forEach(driver => {
+    // Only add markers for drivers with actual location data
+    if (!driver.has_location || driver.has_location === 0) {
+      console.log('Driver ' + driver.name + ' is online but no GPS data yet');
+      return;
+    }
+
+    const lat = parseFloat(driver.latitude);
+    const lng = parseFloat(driver.longitude);
+    
+    // Skip default coordinates
+    if ((lat === 13.941876 && lng === 121.164421)) {
+      console.log('Skipping driver ' + driver.name + ' - using default coordinates');
+      return;
+    }
+
+    const icon = driver.active_trips > 0 ? tripIcon : onlineIcon;
+    const status = driver.active_trips > 0 ? 'On Trip' : 'Available';
+    
+    const marker = L.marker([lat, lng], { icon: icon })
+      .bindPopup(`
+        <div style="min-width: 220px;">
+          <h6 style="margin-bottom: 8px; color: #1f2937; font-weight: 600;">
+            <i class="bi bi-person"></i> ${escapeHtml(driver.name)}
+          </h6>
+          <small style="display: block; margin-bottom: 4px;">
+            <strong>Status:</strong> <span style="color: ${driver.active_trips > 0 ? '#f59e0b' : '#10b981'};">${status}</span>
+          </small>
+          <small style="display: block; margin-bottom: 4px;">
+            <strong>Phone:</strong> ${escapeHtml(driver.phone)}
+          </small>
+          <small style="display: block; margin-bottom: 4px;">
+            <strong>Tricycle:</strong> ${escapeHtml(driver.tricycle_info || 'N/A')}
+          </small>
+          <small style="display: block; margin-bottom: 4px;">
+            <strong>Active Trips:</strong> ${driver.active_trips}
+          </small>
+          <small style="display: block; margin-bottom: 8px; color: #666;">
+            <strong>Coords:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}
+          </small>
+          <small style="display: block; margin-bottom: 4px; color: #999; font-size: 0.75rem;">
+            <strong>Accuracy:</strong> ±${parseFloat(driver.accuracy).toFixed(0)}m
+          </small>
+          <small style="display: block; margin-bottom: 4px; color: ${driver.location_age_seconds > 30 ? '#ef4444' : '#10b981'}; font-size: 0.75rem; font-weight: bold;">
+            <strong>Updated:</strong> ${driver.location_age_seconds}s ago
+          </small>
+          <small style="display: block; margin-bottom: 8px; color: #999; font-size: 0.75rem;">
+            ${driver.location_timestamp ? new Date(driver.location_timestamp).toLocaleTimeString() : 'N/A'}
+          </small>
+          <a href="user-details.php?id=${driver.user_id}" class="btn btn-sm btn-primary" style="width: 100%; text-decoration: none; padding: 4px 8px; background-color: #3b82f6; color: white; border-radius: 4px; text-align: center; font-size: 0.875rem;">
+            <i class="bi bi-eye"></i> View Details
+          </a>
+        </div>
+      `)
+      .addTo(map);
+    
+    currentMarkers[driver.user_id] = marker;
+    markersAdded++;
+  });
+
+  console.log('Added ' + markersAdded + ' markers on map');
+}
+
+// Update drivers list in sidebar
+function updateDriversList(drivers) {
+  const driversList = document.getElementById('driversList');
   
-  const marker = L.marker([driver.latitude, driver.longitude], { icon: icon })
-    .bindPopup(`
-      <div style="min-width: 200px;">
-        <h6 style="margin-bottom: 8px; color: #1f2937;">
-          <i class="bi bi-person"></i> ${driver.name}
-        </h6>
-        <small style="display: block; margin-bottom: 4px;">
-          <strong>Status:</strong> ${status}
-        </small>
-        <small style="display: block; margin-bottom: 4px;">
-          <strong>Phone:</strong> ${driver.phone}
-        </small>
-        <small style="display: block; margin-bottom: 4px;">
-          <strong>Tricycle:</strong> ${driver.tricycle_info || 'N/A'}
-        </small>
-        <small style="display: block; margin-bottom: 8px;">
-          <strong>Active Trips:</strong> ${driver.active_trips}
-        </small>
-        <a href="user-details.php?id=${driver.user_id}" class="btn btn-sm btn-primary" style="width: 100%; text-decoration: none; padding: 4px 8px; background-color: #3b82f6; color: white; border-radius: 4px; text-align: center; font-size: 0.875rem;">
-          <i class="bi bi-eye"></i> View Details
-        </a>
+  if (drivers.length === 0) {
+    driversList.innerHTML = `
+      <div class="empty-state" style="padding: 40px 20px; text-align: center;">
+        <i class="bi bi-geo-alt" style="font-size: 3rem; color: #ccc; display: block; margin-bottom: 15px;"></i>
+        <h5>No Online Drivers</h5>
+        <p class="text-muted">No drivers are currently online.</p>
       </div>
-    `)
-    .addTo(map);
-  
-  markers[driver.user_id] = marker;
-});
+    `;
+    return;
+  }
 
-// Center map on driver
+  driversList.innerHTML = drivers.map(driver => {
+    const hasLocation = driver.has_location && driver.has_location !== 0;
+    const locationAge = driver.location_age_seconds || 0;
+    const isStale = locationAge > 30;
+    
+    return `
+      <div class="driver-item ${hasLocation ? '' : 'opacity-50'} ${isStale ? 'opacity-75' : ''}" onclick="${hasLocation ? `centerMapOnDriver(${parseFloat(driver.latitude)}, ${parseFloat(driver.longitude)}, this)` : 'void(0)'}" style="cursor: ${hasLocation ? 'pointer' : 'default'};">
+        <div class="driver-info">
+          <h6 class="mb-1">
+            ${escapeHtml(driver.name)}
+            ${driver.active_trips > 0 ? `<span class="badge bg-warning text-dark ms-2" style="font-size: 0.75rem;"><i class="bi bi-car-front-fill"></i> ${driver.active_trips} trip(s)</span>` : ''}
+            ${!hasLocation ? `<span class="badge bg-secondary ms-2" style="font-size: 0.75rem;"><i class="bi bi-clock"></i> Waiting GPS</span>` : isStale ? `<span class="badge bg-danger ms-2" style="font-size: 0.75rem;"><i class="bi bi-exclamation-triangle"></i> Stale</span>` : ''}
+          </h6>
+          <small class="text-muted d-block">
+            <i class="bi bi-telephone"></i> ${escapeHtml(driver.phone)}
+          </small>
+          ${hasLocation ? `
+            <small class="text-muted d-block">
+              <i class="bi bi-geo-alt"></i> 
+              Lat: ${parseFloat(driver.latitude).toFixed(6)}, Lng: ${parseFloat(driver.longitude).toFixed(6)}
+            </small>
+            <small class="text-muted d-block" style="font-size: 0.8rem;">
+              <i class="bi bi-bullseye"></i> 
+              Accuracy: ±${parseFloat(driver.accuracy).toFixed(0)}m
+            </small>
+            <small class="text-muted d-block" style="font-size: 0.8rem; ${isStale ? 'color: #dc2626;' : ''}">
+              <i class="bi bi-clock"></i> 
+              Updated: ${locationAge}s ago
+            </small>
+          ` : `
+            <small class="text-warning d-block">
+              <i class="bi bi-hourglass-split"></i> 
+              Waiting for GPS data...
+            </small>
+          `}
+        </div>
+        <div class="driver-status">
+          <span class="status-badge status-active">
+            <i class="bi bi-circle-fill"></i> ${driver.active_trips > 0 ? 'On Trip' : 'Available'}
+          </span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Update online drivers count
+  document.querySelector('.stat-value').textContent = drivers.length;
+  
+  // Update active trips count
+  const activeTripsCount = drivers.filter(d => d.active_trips > 0).length;
+  const statCards = document.querySelectorAll('.stat-value');
+  if (statCards.length >= 2) {
+    statCards[1].textContent = activeTripsCount;
+  }
+}
+
+// Center map on driver location
 function centerMapOnDriver(lat, lng, element) {
   map.setView([lat, lng], 15);
   
@@ -336,15 +463,37 @@ function centerMapOnDriver(lat, lng, element) {
   element.classList.add('active');
 }
 
-// Refresh map data
-function refreshMap() {
-  location.reload();
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return text.replace(/[&<>"']/g, m => map[m]);
 }
 
-// Auto-refresh every 30 seconds
-setTimeout(() => {
-  location.reload();
-}, 30000);
+// Refresh map data
+function refreshMap() {
+  fetchDriverLocations();
+}
+
+// Initialize map on page load
+document.addEventListener('DOMContentLoaded', function() {
+  fetchDriverLocations();
+  
+  // Auto-refresh every 5 seconds to match driver location update interval
+  refreshInterval = setInterval(fetchDriverLocations, 5000);
+});
+
+// Clear interval on page unload
+window.addEventListener('beforeunload', function() {
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
+  }
+});
 </script>
 
 <?php renderAdminFooter(); ?>

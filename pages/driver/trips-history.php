@@ -252,6 +252,56 @@ document.querySelectorAll('.nav-link-btn').forEach(link => {
     menuToggle.classList.add('bi-list');
   });
 });
+
+// Driver location tracking
+function sendLocationToServer(latitude, longitude, accuracy) {
+  fetch('api-driver-location.php', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      latitude: latitude,
+      longitude: longitude,
+      accuracy: accuracy
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      console.log('Location updated successfully');
+    }
+  })
+  .catch(error => console.error('Error sending location:', error));
+}
+
+// Get driver's GPS location and send to server
+function trackDriverLocation() {
+  if (navigator.geolocation) {
+    navigator.geolocation.watchPosition(
+      function(position) {
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+        const accuracy = position.coords.accuracy;
+        
+        sendLocationToServer(latitude, longitude, accuracy);
+      },
+      function(error) {
+        console.warn('Geolocation error:', error);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 5000
+      }
+    );
+  }
+}
+
+// Start tracking location when page loads
+document.addEventListener('DOMContentLoaded', function() {
+  trackDriverLocation();
+});
 </script>
 
 </body>

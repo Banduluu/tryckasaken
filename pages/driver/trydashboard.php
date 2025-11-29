@@ -27,6 +27,20 @@ if ($driver_result) {
     $driver_id = $user_id;
 }
 
+// Auto-set driver as online when opening this page (if verified)
+$verify_query = $conn->prepare("SELECT verification_status, is_online FROM rfid_drivers WHERE user_id = ?");
+$verify_query->bind_param("i", $user_id);
+$verify_query->execute();
+$verify_result = $verify_query->get_result()->fetch_assoc();
+$verify_query->close();
+
+if ($verify_result && $verify_result['verification_status'] === 'verified' && !$verify_result['is_online']) {
+    $online_update = $conn->prepare("UPDATE rfid_drivers SET is_online = 1 WHERE user_id = ?");
+    $online_update->bind_param("i", $user_id);
+    $online_update->execute();
+    $online_update->close();
+}
+
 // Lipa City, Batangas boundaries (same as passenger dashboard)
 $LIPA_CENTER_LAT = 13.941876;
 $LIPA_CENTER_LNG = 121.164421;
@@ -404,6 +418,8 @@ $pending_bookings = $pending_result->fetch_all(MYSQLI_ASSOC);
   let map;
   let markers = {};
   let routeLayer = null;
+  let driverMarker = null;
+  let driverLocationWatch = null;
 
   // Lipa City coordinates
   const LIPA_CENTER_LAT = <?= $LIPA_CENTER_LAT; ?>;
@@ -428,9 +444,103 @@ $pending_bookings = $pending_result->fetch_all(MYSQLI_ASSOC);
       weight: 2,
       dashArray: '5, 5'
     }).addTo(map);
+
+    // Start tracking driver's location
+    trackDriverLocationOnMap();
   }
 
-  // Add markers for all active bookings
+  // Track driver's location and display on map
+  function trackDriverLocationOnMap() {
+    if (navigator.geolocation) {
+      // Get initial position
+      navigator.geolocation.getCurrentPosition(
+        function(position) {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          const accuracy = position.coords.accuracy;
+          
+          // Add driver marker (blue)
+          if (driverMarker) {
+            map.removeLayer(driverMarker);
+          }
+          
+          driverMarker = L.marker([lat, lng], {
+            icon: L.icon({
+              iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+              shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+              iconSize: [25, 41],
+              iconAnchor: [12, 41],
+              popupAnchor: [1, -34],
+              shadowSize: [41, 41]
+            })
+          }).addTo(map);
+          
+          driverMarker.bindPopup(`
+            <div style="min-width: 200px;">
+              <h6 style="margin-bottom: 8px; color: #2563eb;">Your Location</h6>
+              <p style="margin: 4px 0; font-size: 0.8rem;">Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}</p>
+              <p style="margin: 4px 0; font-size: 0.8rem;"><strong>Accuracy:</strong> ±${accuracy.toFixed(0)}m</p>
+            </div>
+          `);
+          
+          // Draw accuracy circle
+          L.circle([lat, lng], {
+            radius: accuracy,
+            color: '#2563eb',
+            fillColor: '#2563eb',
+            fillOpacity: 0.1,
+            weight: 1,
+            dashArray: '3, 3'
+          }).addTo(map);
+        },
+        function(error) {
+          console.warn('Geolocation error:', error);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+
+      // Watch position for continuous updates
+      if (driverLocationWatch) {
+        navigator.geolocation.clearWatch(driverLocationWatch);
+      }
+
+      driverLocationWatch = navigator.geolocation.watchPosition(
+        function(position) {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          const accuracy = position.coords.accuracy;
+          
+          // Update driver marker position
+          if (driverMarker) {
+            driverMarker.setLatLng([lat, lng]);
+          }
+          
+          // Send location to server for persistence
+          sendLocationToServer(lat, lng, accuracy);
+        },
+        function(error) {
+          console.warn('Geolocation watch error:', error);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 5000
+        }
+      );
+    } else {
+      console.warn('Geolocation is not supported by this browser');
+    }
+  }
+
+  // Send driver location to server
+  function sendLocationToServer(latitude, longitude, accuracy) {
+    // This can be extended to save location to database for admin tracking
+    console.log('Driver location:', latitude, longitude, 'Accuracy:', accuracy);
+  }
   function addBookingMarkers() {
     const bookings = <?= json_encode($active_bookings) ?>;
     
@@ -626,6 +736,158 @@ $pending_bookings = $pending_result->fetch_all(MYSQLI_ASSOC);
   setTimeout(function() {
     location.reload();
   }, 300000);
+
+  // Driver location tracking
+  let locationTrackingActive = true;
+  let locationUpdateInterval = null;
+  let currentPosition = null;
+  
+  function sendLocationToServer(latitude, longitude, accuracy) {
+    fetch('api-driver-location.php', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        latitude: latitude,
+        longitude: longitude,
+        accuracy: accuracy
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        console.log('✓ Location saved:', latitude.toFixed(6), longitude.toFixed(6), '±' + accuracy.toFixed(0) + 'm');
+      } else {
+        console.warn('✗ Location save failed:', data.error);
+      }
+    })
+    .catch(error => console.error('✗ Error sending location:', error));
+  }
+
+  // Calculate distance between two coordinates (Haversine formula)
+  function calculateDistance(lat1, lng1, lat2, lng2) {
+    const R = 6371000; // Earth's radius in meters
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in meters
+  }
+
+  // Get driver's GPS location and send to server with 5 second interval
+  function trackDriverLocation() {
+    if (!navigator.geolocation) {
+      console.error('✗ CRITICAL: Geolocation is not supported by this browser');
+      alert('❌ ERROR: Your browser does not support geolocation. Please use a modern browser (Chrome, Firefox, Safari, Edge).');
+      return;
+    }
+
+    console.log('📍 Starting driver location tracking...');
+    console.log('⏳ Requesting geolocation permission from browser...');
+
+    // Get initial position immediately
+    navigator.geolocation.getCurrentPosition(
+      function(position) {
+        currentPosition = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy
+        };
+        
+        console.log('✓ Initial GPS position obtained successfully');
+        console.log(`  Latitude: ${currentPosition.latitude.toFixed(6)}`);
+        console.log(`  Longitude: ${currentPosition.longitude.toFixed(6)}`);
+        console.log(`  Accuracy: ±${currentPosition.accuracy.toFixed(0)}m`);
+        sendLocationToServer(currentPosition.latitude, currentPosition.longitude, currentPosition.accuracy);
+      },
+      function(error) {
+        console.error('✗ Geolocation permission denied or unavailable');
+        console.error('  Error code:', error.code);
+        console.error('  Error message:', error.message);
+        
+        let errorMsg = 'Geolocation Error: ';
+        switch(error.code) {
+          case error.PERMISSION_DENIED:
+            errorMsg += 'Permission denied. Please enable location access in browser settings.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMsg += 'Location information unavailable. Check GPS/location services.';
+            break;
+          case error.TIMEOUT:
+            errorMsg += 'Request timed out. Try again in a moment.';
+            break;
+          default:
+            errorMsg += error.message;
+        }
+        console.error('⚠️  ' + errorMsg);
+        alert('⚠️ ' + errorMsg);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 30000,
+        maximumAge: 0
+      }
+    );
+
+    // Watch position for continuous updates
+    if (navigator.geolocation) {
+      navigator.geolocation.watchPosition(
+        function(position) {
+          if (locationTrackingActive) {
+            currentPosition = {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              accuracy: position.coords.accuracy
+            };
+          }
+        },
+        function(error) {
+          console.warn('⚠️ Geolocation watch error:', error.message);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 30000,
+          maximumAge: 0  // Don't use cached positions - get fresh data
+        }
+      );
+    }
+
+    // Send location to server every 5 seconds
+    if (locationUpdateInterval) {
+      clearInterval(locationUpdateInterval);
+    }
+
+    let sendCount = 0;
+    locationUpdateInterval = setInterval(function() {
+      if (locationTrackingActive && currentPosition) {
+        sendCount++;
+        console.log(`[${sendCount}] Sending location update...`);
+        sendLocationToServer(
+          currentPosition.latitude,
+          currentPosition.longitude,
+          currentPosition.accuracy
+        );
+      }
+    }, 5000); // 5 second interval
+  }
+
+  // Start tracking location when page loads
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('Starting driver location tracking...');
+    trackDriverLocation();
+  });
+
+  // Stop tracking on page unload
+  window.addEventListener('beforeunload', function() {
+    locationTrackingActive = false;
+    if (locationUpdateInterval) {
+      clearInterval(locationUpdateInterval);
+    }
+  });
 </script>
 
 </body>
