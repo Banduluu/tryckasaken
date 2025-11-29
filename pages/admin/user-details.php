@@ -223,6 +223,45 @@ renderAdminHeader("View User - " . htmlspecialchars($user['name']), "users");
             <span class="info-label"><i class="bi bi-car-front"></i> Tricycle Information</span>
             <span class="info-value"><?= htmlspecialchars($driverInfo['tricycle_info']) ?></span>
           </div>
+          <div class="info-item">
+            <span class="info-label"><i class="bi bi-credit-card-2-front"></i> RFID Card UID</span>
+            <span class="info-value">
+              <?php if (!empty($driverInfo['rfid_uid'])): ?>
+                <span style="font-family: monospace; font-weight: bold; color: #16a34a;">
+                  <?= htmlspecialchars($driverInfo['rfid_uid']) ?>
+                </span>
+                <?php if ($driverInfo['verification_status'] === 'verified'): ?>
+                  <button class="btn btn-sm btn-warning ms-2" onclick="updateDriverRFID()" title="Update RFID">
+                    <i class="bi bi-pencil"></i>
+                  </button>
+                  <button class="btn btn-sm btn-danger ms-1" onclick="removeDriverRFID()" title="Remove RFID">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                <?php endif; ?>
+              <?php else: ?>
+                <span class="text-muted">Not Assigned</span>
+                <?php if ($driverInfo['verification_status'] === 'verified'): ?>
+                  <button class="btn btn-sm btn-success ms-2" onclick="assignDriverRFID()" title="Assign RFID">
+                    <i class="bi bi-plus-circle"></i> Assign Card
+                  </button>
+                <?php endif; ?>
+              <?php endif; ?>
+            </span>
+          </div>
+          <div class="info-item">
+            <span class="info-label"><i class="bi bi-broadcast"></i> Online Status</span>
+            <span class="info-value">
+              <?php if ($driverInfo['is_online']): ?>
+                <span class="badge bg-success">
+                  <i class="bi bi-circle-fill"></i> Online
+                </span>
+              <?php else: ?>
+                <span class="badge bg-secondary">
+                  <i class="bi bi-circle"></i> Offline
+                </span>
+              <?php endif; ?>
+            </span>
+          </div>
         </div>
         
         <!-- Documents -->
@@ -316,7 +355,124 @@ renderAdminHeader("View User - " . htmlspecialchars($user['name']), "users");
   </div>
 </div>
 
-<!-- Document View Modal -->
+<script>
+function viewDocument(path, title) {
+  document.getElementById('documentTitle').textContent = title;
+  document.getElementById('documentImage').src = path;
+  document.getElementById('downloadLink').href = path;
+  
+  const modal = new bootstrap.Modal(document.getElementById('documentModal'));
+  modal.show();
+}
+
+// RFID Management Functions
+function assignDriverRFID() {
+  const uid = prompt('Enter RFID Card UID (hexadecimal characters only):');
+  if (!uid || !uid.trim()) return;
+  
+  const cleanUid = uid.trim().toUpperCase();
+  
+  if (!/^[A-F0-9]+$/.test(cleanUid)) {
+    alert('Invalid UID format. Please use hexadecimal characters only (0-9, A-F).');
+    return;
+  }
+  
+  if (!confirm(`Assign RFID card ${cleanUid} to this driver?`)) return;
+  
+  fetch('api-rfid-actions.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'assign',
+      user_id: <?= $userId ?>,
+      rfid_uid: cleanUid
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      alert('RFID card assigned successfully!');
+      location.reload();
+    } else {
+      alert('Error: ' + data.message);
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert('Failed to assign RFID card');
+  });
+}
+
+function updateDriverRFID() {
+  const currentUid = '<?= !empty($driverInfo['rfid_uid']) ? htmlspecialchars($driverInfo['rfid_uid']) : '' ?>';
+  const uid = prompt('Update RFID Card UID:', currentUid);
+  if (!uid || !uid.trim() || uid.trim().toUpperCase() === currentUid) return;
+  
+  const cleanUid = uid.trim().toUpperCase();
+  
+  if (!/^[A-F0-9]+$/.test(cleanUid)) {
+    alert('Invalid UID format. Please use hexadecimal characters only (0-9, A-F).');
+    return;
+  }
+  
+  if (!confirm(`Update RFID card to ${cleanUid}?`)) return;
+  
+  fetch('api-rfid-actions.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'update',
+      user_id: <?= $userId ?>,
+      rfid_uid: cleanUid
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      alert('RFID card updated successfully!');
+      location.reload();
+    } else {
+      alert('Error: ' + data.message);
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert('Failed to update RFID card');
+  });
+}
+
+function removeDriverRFID() {
+  if (!confirm('Remove RFID card from this driver? They will not be able to use the attendance system until a new card is assigned.')) return;
+  
+  fetch('api-rfid-actions.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'remove',
+      user_id: <?= $userId ?>
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      alert('RFID card removed successfully!');
+      location.reload();
+    } else {
+      alert('Error: ' + data.message);
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert('Failed to remove RFID card');
+  });
+}
+</script>
+
+<?php 
+renderAdminFooter();
+?>
+
+<!-- Document View Modal - Moved outside container for proper z-index -->
 <div class="modal fade" id="documentModal" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
@@ -337,18 +493,6 @@ renderAdminHeader("View User - " . htmlspecialchars($user['name']), "users");
   </div>
 </div>
 
-<script>
-function viewDocument(path, title) {
-  document.getElementById('documentTitle').textContent = title;
-  document.getElementById('documentImage').src = path;
-  document.getElementById('downloadLink').href = path;
-  
-  const modal = new bootstrap.Modal(document.getElementById('documentModal'));
-  modal.show();
-}
-</script>
-
 <?php 
-renderAdminFooter();
 $db->closeConnection();
 ?>

@@ -43,10 +43,18 @@ $stmt->bind_param("si", $newStatus, $userId);
 
 if ($stmt->execute()) {
     $stmt->close();
-    $db->closeConnection();
     
-    // Log the action
-    error_log("User status changed - ID: {$userId}, Name: {$user['name']}, New Status: {$newStatus}");
+    // Log to admin_action_logs
+    $adminId = $_SESSION['user_id'];
+    $actionType = $action === 'activate' ? 'user_activate' : 'user_suspend';
+    $actionDetails = "Changed status to {$newStatus} for user: {$user['name']} (ID: {$userId})";
+    
+    $logStmt = $conn->prepare("INSERT INTO admin_action_logs (admin_id, action_type, target_user_id, action_details) VALUES (?, ?, ?, ?)");
+    $logStmt->bind_param("isis", $adminId, $actionType, $userId, $actionDetails);
+    $logStmt->execute();
+    $logStmt->close();
+    
+    $db->closeConnection();
     
     header("Location: user-details.php?id={$userId}&success=" . urlencode($message) . "&type=" . $messageType);
     exit;

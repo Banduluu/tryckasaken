@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
     
-    $query = "SELECT u.user_id, u.name, u.phone, d.driver_id, d.verification_status, d.picture_path, d.tricycle_info
+    $query = "SELECT u.user_id, u.name, u.phone, d.driver_id, d.verification_status, d.picture_path, d.tricycle_info, d.is_online, d.card_status
               FROM users u 
               JOIN rfid_drivers d ON u.user_id = d.user_id
               WHERE d.rfid_uid = ? LIMIT 1";
@@ -58,6 +58,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $result = $stmt->get_result();
     
     if ($result->num_rows === 0) {
+        // Check if learning mode is active
+        $learningStatusFile = __DIR__ . '/../../temp/learning_mode_status.json';
+        $learningEnabled = false;
+        
+        if (file_exists($learningStatusFile)) {
+            $statusData = json_decode(file_get_contents($learningStatusFile), true);
+            if ($statusData && isset($statusData['enabled']) && $statusData['enabled'] === true) {
+                $learningEnabled = true;
+            }
+        }
+        
+        // Only log unknown card if learning mode is active
+        if ($learningEnabled) {
+            $learningFile = __DIR__ . '/../../temp/rfid_learning_latest.json';
+            $learningDir = dirname($learningFile);
+            
+            if (!file_exists($learningDir)) {
+                mkdir($learningDir, 0777, true);
+            }
+            
+            $learningData = [
+                'uid' => $uid,
+                'timestamp' => date('Y-m-d H:i:s'),
+                'detected' => true
+            ];
+            
+            file_put_contents($learningFile, json_encode($learningData));
+        }
+        
         ob_end_clean();
         echo json_encode(['success' => false, 'message' => 'Unknown card']);
         $stmt->close();
@@ -68,12 +97,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $driver = $result->fetch_assoc();
     $stmt->close();
     
+    // Check if card is blocked
+    if (isset($driver['card_status']) && $driver['card_status'] !== 'active') {
+        ob_end_clean();
+        $statusMessage = $driver['card_status'] === 'stolen' ? 'Card reported stolen' : 
+                        ($driver['card_status'] === 'lost' ? 'Card reported lost' : 'Card blocked');
+        echo json_encode(['success' => false, 'message' => $statusMessage]);
+        $conn->close();
+        exit();
+    }
+    
     if ($driver['verification_status'] !== 'verified') {
         ob_end_clean();
         echo json_encode(['success' => false, 'message' => 'Driver not verified']);
         $conn->close();
         exit();
     }
+    
+    // Auto-determine action based on current status
+    // If currently offline (0), make them online
+    // If currently online (1), make them offline
+    $actualAction = ($driver['is_online'] == 0) ? 'online' : 'offline';
     
     $insert_query = "INSERT INTO driver_attendance (driver_id, user_id, action, timestamp, rfid_uid) 
                      VALUES (?, ?, ?, ?, ?)";
@@ -82,13 +126,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $insert_stmt->bind_param("iisss", 
         $driver['driver_id'],
         $driver['user_id'], 
-        $action, 
+        $actualAction, 
         $timestamp, 
         $uid
     );
     
     if ($insert_stmt->execute()) {
-        $is_online = ($action === 'online') ? 1 : 0;
+        $is_online = ($actualAction === 'online') ? 1 : 0;
         
         // Update rfid_drivers table
         $update_query = "UPDATE rfid_drivers SET is_online = ?, last_attendance = ? WHERE user_id = ?";
@@ -101,11 +145,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode([
             'success' => true, 
             'message' => 'Success',
+            'action' => $actualAction,
             'driver' => [
                 'name' => $driver['name'],
                 'phone' => $driver['phone'],
                 'tricycle_info' => $driver['tricycle_info'],
-                'action' => $action
+                'action' => $actualAction
             ]
         ]);
     } else {

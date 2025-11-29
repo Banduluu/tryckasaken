@@ -25,6 +25,16 @@ if (!$user) {
     exit;
 }
 
+// Log to admin_action_logs BEFORE deletion
+$adminId = $_SESSION['user_id'];
+$actionType = 'user_delete';
+$actionDetails = "Deleted user: {$user['name']} (ID: {$userId}, Email: {$user['email']}, Type: {$user['user_type']})";
+
+$logStmt = $conn->prepare("INSERT INTO admin_action_logs (admin_id, action_type, target_user_id, action_details) VALUES (?, ?, ?, ?)");
+$logStmt->bind_param("isis", $adminId, $actionType, $userId, $actionDetails);
+$logStmt->execute();
+$logStmt->close();
+
 // Delete user (CASCADE will handle related records)
 $stmt = $conn->prepare("DELETE FROM users WHERE user_id = ?");
 $stmt->bind_param("i", $userId);
@@ -32,9 +42,6 @@ $stmt->bind_param("i", $userId);
 if ($stmt->execute()) {
     $stmt->close();
     $db->closeConnection();
-    
-    // Log the deletion
-    error_log("User deleted - ID: {$userId}, Name: {$user['name']}, Email: {$user['email']}");
     
     header("Location: dashboard.php?success=User '{$user['name']}' has been permanently deleted&type=warning");
     exit;

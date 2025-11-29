@@ -101,25 +101,25 @@ $conn->close();
     
     <!-- Online/Offline Toggle -->
     <?php if ($verification_status === 'pending'): ?>
-      <button class="offline-toggle pending-verification" id="statusToggle" disabled style="cursor: not-allowed;" title="Status toggle disabled - Account pending verification">
-        <i class="bi bi-clock-fill" id="statusIcon"></i>
-        <span id="statusText">Pending Verification</span>
-      </button>
+      <div class="offline-toggle pending-verification" style="cursor: default;">
+        <i class="bi bi-clock-fill"></i>
+        <span>Pending Verification</span>
+      </div>
     <?php elseif ($verification_status === 'rejected'): ?>
-      <button class="offline-toggle account-rejected" id="statusToggle" disabled style="cursor: not-allowed;" title="Status toggle disabled - Account rejected">
-        <i class="bi bi-x-circle-fill" id="statusIcon"></i>
-        <span id="statusText">Account Rejected</span>
-      </button>
+      <div class="offline-toggle account-rejected" style="cursor: default;">
+        <i class="bi bi-x-circle-fill"></i>
+        <span>Account Rejected</span>
+      </div>
     <?php elseif ($has_active_trip): ?>
-      <button class="offline-toggle on-trip" id="statusToggle" disabled style="cursor: not-allowed;" title="Cannot change status during active trip">
-        <i class="bi bi-circle-fill" id="statusIcon"></i>
-        <span id="statusText">On Trip</span>
-      </button>
+      <div class="offline-toggle on-trip" style="cursor: default;">
+        <i class="bi bi-circle-fill"></i>
+        <span>On Trip</span>
+      </div>
     <?php else: ?>
-      <button class="offline-toggle <?= $is_online ? 'online' : 'offline' ?>" id="statusToggle" onclick="toggleDriverStatus()">
-        <i class="bi bi-circle-fill" id="statusIcon"></i>
-        <span id="statusText"><?= $is_online ? 'Online' : 'Offline' ?></span>
-      </button>
+      <div class="offline-toggle <?= $is_online ? 'online' : 'offline' ?>" style="cursor: default;">
+        <i class="bi bi-circle-fill"></i>
+        <span><?= $is_online ? 'Online' : 'Offline' ?></span>
+      </div>
     <?php endif; ?>
     
     <button class="navbar-toggler" onclick="toggleMenu()">
@@ -221,7 +221,7 @@ $conn->close();
     <?php if ($verification_status === 'verified' && !$is_online && !$has_active_trip): ?>
       <div class="mt-3 p-3" style="background: rgba(156, 163, 175, 0.1); border-radius: 12px; border-left: 4px solid #6b7280;">
         <i class="bi bi-wifi-off me-2" style="color: #6b7280;"></i>
-        <strong>You're Offline:</strong> Toggle your status to "Online" to start viewing and accepting ride requests.
+        <strong>You're Offline:</strong> Tap the card to make your status "Online" to start viewing and accepting ride requests.
       </div>
     <?php endif; ?>
     

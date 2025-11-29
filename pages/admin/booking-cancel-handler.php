@@ -42,10 +42,18 @@ $stmt->bind_param("i", $bookingId);
 
 if ($stmt->execute()) {
     $stmt->close();
-    $db->closeConnection();
     
-    // Log the action
-    error_log("Booking cancelled - ID: {$bookingId}, Route: {$booking['location']} → {$booking['destination']}");
+    // Log to admin_action_logs
+    $adminId = $_SESSION['user_id'];
+    $actionType = 'booking_cancel';
+    $actionDetails = "Cancelled booking #{$bookingId}. Route: {$booking['location']} → {$booking['destination']}. Previous status: {$booking['status']}";
+    
+    $logStmt = $conn->prepare("INSERT INTO admin_action_logs (admin_id, action_type, target_user_id, action_details) VALUES (?, ?, NULL, ?)");
+    $logStmt->bind_param("iss", $adminId, $actionType, $actionDetails);
+    $logStmt->execute();
+    $logStmt->close();
+    
+    $db->closeConnection();
     
     header("Location: bookings-list.php?success=Booking #{$bookingId} has been cancelled successfully");
     exit;

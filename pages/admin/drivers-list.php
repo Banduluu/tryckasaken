@@ -24,6 +24,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute();
             $stmt->close();
             $_SESSION['success_message'] = 'Driver activated successfully!';
+        } elseif ($action === 'set_online') {
+            $stmt = $conn->prepare("UPDATE rfid_drivers SET is_online = 1 WHERE user_id = ?");
+            $stmt->bind_param("i", $user_id);
+            $stmt->execute();
+            $stmt->close();
+            $_SESSION['success_message'] = 'Driver set to online successfully!';
+        } elseif ($action === 'set_offline') {
+            $stmt = $conn->prepare("UPDATE rfid_drivers SET is_online = 0 WHERE user_id = ?");
+            $stmt->bind_param("i", $user_id);
+            $stmt->execute();
+            $stmt->close();
+            $_SESSION['success_message'] = 'Driver set to offline successfully!';
         }
         
         header("Location: drivers-list.php");
@@ -163,6 +175,9 @@ $offline_count = count($offline_drivers);
     <a href="drivers-verification.php" class="btn btn-custom">
       <i class="bi bi-shield-check"></i> Driver Verification
     </a>
+    <a href="drivers-location.php" class="btn btn-custom">
+      <i class="bi bi-geo-alt-fill"></i> Drivers Location
+    </a>
   </div>
   <div class="col-md-6 text-end">
     <small class="text-muted">
@@ -257,20 +272,35 @@ $offline_count = count($offline_drivers);
                   </span>
                 </td>
                 <td>
-                  <a href="user-details.php?id=<?= $driver['user_id'] ?>" class="action-btn">
-                    <i class="bi bi-eye"></i> View
-                  </a>
-                  <?php if ($driver['status'] === 'active'): ?>
-                    <button type="button" class="action-btn btn-danger" 
-                            onclick="suspendDriver(<?= $driver['user_id'] ?>, '<?= htmlspecialchars(addslashes($driver['name'])) ?>', this)">
-                      <i class="bi bi-person-x"></i> Suspend
-                    </button>
-                  <?php elseif ($driver['status'] === 'suspended'): ?>
-                    <button type="button" class="action-btn btn-success" 
-                            onclick="activateDriver(<?= $driver['user_id'] ?>, '<?= htmlspecialchars(addslashes($driver['name'])) ?>', this)">
-                      <i class="bi bi-person-check"></i> Activate
-                    </button>
-                  <?php endif; ?>
+                  <div class="btn-group btn-group-sm" role="group">
+                    <a href="user-details.php?id=<?= $driver['user_id'] ?>" class="action-btn">
+                      <i class="bi bi-eye"></i> View
+                    </a>
+                    <?php if ($driver['status'] === 'active'): ?>
+                      <?php if (!$has_active): ?>
+                        <?php if ($is_online): ?>
+                          <button type="button" class="action-btn btn-warning" 
+                                  onclick="setDriverOffline(<?= $driver['user_id'] ?>, '<?= htmlspecialchars(addslashes($driver['name'])) ?>', this)">
+                            <i class="bi bi-wifi-off"></i> Set Offline
+                          </button>
+                        <?php else: ?>
+                          <button type="button" class="action-btn btn-info" 
+                                  onclick="setDriverOnline(<?= $driver['user_id'] ?>, '<?= htmlspecialchars(addslashes($driver['name'])) ?>', this)">
+                            <i class="bi bi-wifi"></i> Set Online
+                          </button>
+                        <?php endif; ?>
+                      <?php endif; ?>
+                      <button type="button" class="action-btn btn-danger" 
+                              onclick="suspendDriver(<?= $driver['user_id'] ?>, '<?= htmlspecialchars(addslashes($driver['name'])) ?>', this)">
+                        <i class="bi bi-person-x"></i> Suspend
+                      </button>
+                    <?php elseif ($driver['status'] === 'suspended'): ?>
+                      <button type="button" class="action-btn btn-success" 
+                              onclick="activateDriver(<?= $driver['user_id'] ?>, '<?= htmlspecialchars(addslashes($driver['name'])) ?>', this)">
+                        <i class="bi bi-person-check"></i> Activate
+                      </button>
+                    <?php endif; ?>
+                  </div>
                 </td>
               </tr>
             <?php endforeach; ?>
@@ -307,28 +337,26 @@ $offline_count = count($offline_drivers);
                     </span>
                   </td>
                   <td>
-                    <a href="user-details.php?id=<?= $driver['user_id'] ?>" class="action-btn">
-                      <i class="bi bi-eye"></i> View
-                    </a>
-                    <?php if ($driver['status'] === 'active'): ?>
-                      
-                        
-                        
+                    <div class="btn-group btn-group-sm" role="group">
+                      <a href="user-details.php?id=<?= $driver['user_id'] ?>" class="action-btn">
+                        <i class="bi bi-eye"></i> View
+                      </a>
+                      <?php if ($driver['status'] === 'active'): ?>
+                        <button type="button" class="action-btn btn-warning" 
+                                onclick="setDriverOffline(<?= $driver['user_id'] ?>, '<?= htmlspecialchars(addslashes($driver['name'])) ?>', this)">
+                          <i class="bi bi-wifi-off"></i> Set Offline
+                        </button>
                         <button type="button" class="action-btn btn-danger" 
                                 onclick="suspendDriver(<?= $driver['user_id'] ?>, '<?= htmlspecialchars(addslashes($driver['name'])) ?>', this)">
                           <i class="bi bi-person-x"></i> Suspend
                         </button>
-                      
-                    <?php elseif ($driver['status'] === 'suspended'): ?>
-                      
-                        
-                        
-                        <button type="button" class="action-btn" 
+                      <?php elseif ($driver['status'] === 'suspended'): ?>
+                        <button type="button" class="action-btn btn-success" 
                                 onclick="activateDriver(<?= $driver['user_id'] ?>, '<?= htmlspecialchars(addslashes($driver['name'])) ?>', this)">
                           <i class="bi bi-person-check"></i> Activate
                         </button>
-                      
-                    <?php endif; ?>
+                      <?php endif; ?>
+                    </div>
                   </td>
                 </tr>
               <?php endforeach; ?>
@@ -378,28 +406,22 @@ $offline_count = count($offline_drivers);
                     </span>
                   </td>
                   <td>
-                    <a href="user-details.php?id=<?= $driver['user_id'] ?>" class="action-btn">
-                      <i class="bi bi-eye"></i> View
-                    </a>
-                    <?php if ($driver['status'] === 'active'): ?>
-                      
-                        
-                        
+                    <div class="btn-group btn-group-sm" role="group">
+                      <a href="user-details.php?id=<?= $driver['user_id'] ?>" class="action-btn">
+                        <i class="bi bi-eye"></i> View
+                      </a>
+                      <?php if ($driver['status'] === 'active'): ?>
                         <button type="button" class="action-btn btn-danger" 
                                 onclick="suspendDriver(<?= $driver['user_id'] ?>, '<?= htmlspecialchars(addslashes($driver['name'])) ?>', this)">
                           <i class="bi bi-person-x"></i> Suspend
                         </button>
-                      
-                    <?php elseif ($driver['status'] === 'suspended'): ?>
-                      
-                        
-                        
-                        <button type="button" class="action-btn" 
+                      <?php elseif ($driver['status'] === 'suspended'): ?>
+                        <button type="button" class="action-btn btn-success" 
                                 onclick="activateDriver(<?= $driver['user_id'] ?>, '<?= htmlspecialchars(addslashes($driver['name'])) ?>', this)">
                           <i class="bi bi-person-check"></i> Activate
                         </button>
-                      
-                    <?php endif; ?>
+                      <?php endif; ?>
+                    </div>
                   </td>
                 </tr>
               <?php endforeach; ?>
@@ -443,28 +465,26 @@ $offline_count = count($offline_drivers);
                     </span>
                   </td>
                   <td>
-                    <a href="user-details.php?id=<?= $driver['user_id'] ?>" class="action-btn">
-                      <i class="bi bi-eye"></i> View
-                    </a>
-                    <?php if ($driver['status'] === 'active'): ?>
-                      
-                        
-                        
+                    <div class="btn-group btn-group-sm" role="group">
+                      <a href="user-details.php?id=<?= $driver['user_id'] ?>" class="action-btn">
+                        <i class="bi bi-eye"></i> View
+                      </a>
+                      <?php if ($driver['status'] === 'active'): ?>
+                        <button type="button" class="action-btn btn-info" 
+                                onclick="setDriverOnline(<?= $driver['user_id'] ?>, '<?= htmlspecialchars(addslashes($driver['name'])) ?>', this)">
+                          <i class="bi bi-wifi"></i> Set Online
+                        </button>
                         <button type="button" class="action-btn btn-danger" 
                                 onclick="suspendDriver(<?= $driver['user_id'] ?>, '<?= htmlspecialchars(addslashes($driver['name'])) ?>', this)">
                           <i class="bi bi-person-x"></i> Suspend
                         </button>
-                      
-                    <?php elseif ($driver['status'] === 'suspended'): ?>
-                      
-                        
-                        
-                        <button type="button" class="action-btn" 
+                      <?php elseif ($driver['status'] === 'suspended'): ?>
+                        <button type="button" class="action-btn btn-success" 
                                 onclick="activateDriver(<?= $driver['user_id'] ?>, '<?= htmlspecialchars(addslashes($driver['name'])) ?>', this)">
                           <i class="bi bi-person-check"></i> Activate
                         </button>
-                      
-                    <?php endif; ?>
+                      <?php endif; ?>
+                    </div>
                   </td>
                 </tr>
               <?php endforeach; ?>
@@ -518,13 +538,15 @@ $offline_count = count($offline_drivers);
                     </small>
                   </td>
                   <td>
-                    <a href="user-details.php?id=<?= $driver['user_id'] ?>" class="action-btn">
-                      <i class="bi bi-eye"></i> View
-                    </a>
-                    <button type="button" class="action-btn btn-success" 
-                            onclick="activateDriver(<?= $driver['user_id'] ?>, '<?= htmlspecialchars(addslashes($driver['name'])) ?>', this)">
-                      <i class="bi bi-person-check"></i> Activate
-                    </button>
+                    <div class="btn-group btn-group-sm" role="group">
+                      <a href="user-details.php?id=<?= $driver['user_id'] ?>" class="action-btn">
+                        <i class="bi bi-eye"></i> View
+                      </a>
+                      <button type="button" class="action-btn btn-success" 
+                              onclick="activateDriver(<?= $driver['user_id'] ?>, '<?= htmlspecialchars(addslashes($driver['name'])) ?>', this)">
+                        <i class="bi bi-person-check"></i> Activate
+                      </button>
+                    </div>
                   </td>
                 </tr>
               <?php endforeach; ?>
@@ -669,22 +691,19 @@ function suspendDriver(userId, userName, button) {
     button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
     
     const formData = new FormData();
-    formData.append('action', 'suspend_user');
+    formData.append('action', 'suspend');
     formData.append('user_id', userId);
     
-    fetch('api-admin-actions.php', {
+    fetch(window.location.href, {
         method: 'POST',
         body: formData
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showToast(data.message, 'success');
+    .then(response => {
+        if (response.ok) {
+            showToast('Driver suspended successfully!', 'success');
             setTimeout(() => location.reload(), 1500);
         } else {
-            showToast(data.message, 'error');
-            button.disabled = false;
-            button.innerHTML = '<i class="bi bi-person-x"></i> Suspend';
+            throw new Error('Failed to suspend driver');
         }
     })
     .catch(error => {
@@ -703,28 +722,87 @@ function activateDriver(userId, userName, button) {
     button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
     
     const formData = new FormData();
-    formData.append('action', 'activate_user');
+    formData.append('action', 'activate');
     formData.append('user_id', userId);
     
-    fetch('api-admin-actions.php', {
+    fetch(window.location.href, {
         method: 'POST',
         body: formData
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showToast(data.message, 'success');
+    .then(response => {
+        if (response.ok) {
+            showToast('Driver activated successfully!', 'success');
             setTimeout(() => location.reload(), 1500);
         } else {
-            showToast(data.message, 'error');
-            button.disabled = false;
-            button.innerHTML = '<i class="bi bi-person-check"></i> Activate';
+            throw new Error('Failed to activate driver');
         }
     })
     .catch(error => {
         showToast('An error occurred. Please try again.', 'error');
         button.disabled = false;
         button.innerHTML = '<i class="bi bi-person-check"></i> Activate';
+        console.error('Error:', error);
+    });
+}
+
+// Set driver online
+function setDriverOnline(userId, userName, button) {
+    if (!confirm(`Are you sure you want to set ${userName} as online?`)) return;
+    
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    
+    const formData = new FormData();
+    formData.append('action', 'set_online');
+    formData.append('user_id', userId);
+    
+    fetch(window.location.href, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        if (response.ok) {
+            showToast('Driver set to online successfully!', 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            throw new Error('Failed to update status');
+        }
+    })
+    .catch(error => {
+        showToast('An error occurred. Please try again.', 'error');
+        button.disabled = false;
+        button.innerHTML = '<i class="bi bi-wifi"></i> Set Online';
+        console.error('Error:', error);
+    });
+}
+
+// Set driver offline
+function setDriverOffline(userId, userName, button) {
+    if (!confirm(`Are you sure you want to set ${userName} as offline?`)) return;
+    
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    
+    const formData = new FormData();
+    formData.append('action', 'set_offline');
+    formData.append('user_id', userId);
+    
+    fetch(window.location.href, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        if (response.ok) {
+            showToast('Driver set to offline successfully!', 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            throw new Error('Failed to update status');
+        }
+    })
+    .catch(error => {
+        showToast('An error occurred. Please try again.', 'error');
+        button.disabled = false;
+        button.innerHTML = '<i class="bi bi-wifi-off"></i> Set Offline';
         console.error('Error:', error);
     });
 }

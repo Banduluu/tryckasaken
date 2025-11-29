@@ -17,6 +17,24 @@
   --transition-base: all 0.3s ease;
 }
 
+/* Global Modal Fix - Ensure modals appear on top */
+.modal {
+  z-index: 9999 !important;
+}
+
+.modal-backdrop {
+  z-index: 9998 !important;
+}
+
+.modal-dialog {
+  z-index: 10000 !important;
+}
+
+.modal-content {
+  position: relative;
+  z-index: 10001 !important;
+}
+
 body {
   background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 50%, #ffffff 100%);
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;

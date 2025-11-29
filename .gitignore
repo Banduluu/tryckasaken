@@ -30,7 +30,6 @@ php_errors.log
 # Cache and Build Files
 /cache/
 /tmp/
-/temp/
 /storage/logs/*
 !/storage/logs/.gitkeep
 /storage/cache/*
@@ -43,6 +42,10 @@ config/database_local.php
 config/secrets.php
 .env
 .env.local
+
+# User Uploads (keep folder structure, ignore files)
+/public/uploads/drivers/*
+!/public/uploads/drivers/.gitkeep
 
 # Compressed Files
 *.zip

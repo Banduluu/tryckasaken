@@ -76,12 +76,12 @@ renderAdminHeader("Admin Management", "admin_management");
                 <a href="user-edit.php?id=<?= $user['user_id'] ?>" class="action-btn btn-warning">
                   <i class="bi bi-pencil"></i> Edit
                 </a>
-                <?php if ($user['status'] === 'active' && $user['user_id'] != $_SESSION['admin_id']): ?>
+                <?php if ($user['status'] === 'active' && $user['user_id'] != $_SESSION['user_id']): ?>
                   <a href="user-suspend-handler.php?id=<?= $user['user_id'] ?>" class="action-btn btn-danger" 
                      onclick="return confirm('Are you sure you want to suspend this admin?')">
                     <i class="bi bi-person-x"></i> Suspend
                   </a>
-                <?php elseif ($user['user_id'] == $_SESSION['admin_id']): ?>
+                <?php elseif ($user['user_id'] == $_SESSION['user_id']): ?>
                   <span class="badge bg-info">
                     <i class="bi bi-person-check"></i> You
                   </span>
