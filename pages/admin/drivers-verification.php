@@ -324,42 +324,6 @@ renderAdminHeader("Driver Verification", "driver_verification");
     <?php endif; ?>
 </div>
 
-<!-- Document Viewer Modal -->
-<div class="modal fade" id="documentModal" tabindex="-1" data-bs-backdrop="true" data-bs-keyboard="true">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title" id="documentModalTitle">
-                    <i class="bi bi-file-earmark-text me-2"></i>Document Viewer
-                </h5>
-                <div class="d-flex gap-2">
-                    <!-- Download/Open button -->
-                    <button type="button" class="btn btn-light btn-sm" id="downloadBtn" onclick="downloadDocument()">
-                        <i class="bi bi-download"></i> Download
-                    </button>
-                    <!-- Close button -->
-                    <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal" aria-label="Close">
-                        <i class="bi bi-x-lg"></i> Close
-                    </button>
-                </div>
-            </div>
-            <div class="modal-body text-center p-0" onclick="event.stopPropagation()">
-                <div id="documentContent" style="min-height: 600px; background: #f8f9fa;"></div>
-            </div>
-            <div class="modal-footer bg-light">
-                <div class="d-flex justify-content-between w-100">
-                    <small class="text-muted" id="documentInfo">Document loaded</small>
-                    <div>
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" aria-label="Close">
-                            <i class="bi bi-x-circle"></i> Close
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
 let currentDocumentPath = '';
 
@@ -667,3 +631,38 @@ document.head.appendChild(style);
 </script>
 
 <?php renderAdminFooter(); ?>
+<!-- Document Viewer Modal - Moved outside container for proper z-index -->
+<div class="modal fade" id="documentModal" tabindex="-1" data-bs-backdrop="true" data-bs-keyboard="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="documentModalTitle">
+                    <i class="bi bi-file-earmark-text me-2"></i>Document Viewer
+                </h5>
+                <div class="d-flex gap-2">
+                    <!-- Download/Open button -->
+                    <button type="button" class="btn btn-light btn-sm" id="downloadBtn" onclick="downloadDocument()">
+                        <i class="bi bi-download"></i> Download
+                    </button>
+                    <!-- Close button -->
+                    <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal" aria-label="Close">
+                        <i class="bi bi-x-lg"></i> Close
+                    </button>
+                </div>
+            </div>
+            <div class="modal-body text-center p-0" onclick="event.stopPropagation()">
+                <div id="documentContent" style="min-height: 600px; background: #f8f9fa;"></div>
+            </div>
+            <div class="modal-footer bg-light">
+                <div class="d-flex justify-content-between w-100">
+                    <small class="text-muted" id="documentInfo">Document loaded</small>
+                    <div>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" aria-label="Close">
+                            <i class="bi bi-x-circle"></i> Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -178,6 +178,42 @@ $result = $stmt->get_result();
 $latestBooking = $result->fetch_assoc();
 $stmt->close();
 
+// Function to check if there are available online drivers
+function checkAvailableDrivers($conn) {
+    $stmt = $conn->prepare("
+        SELECT COUNT(*) as online_count 
+        FROM rfid_drivers 
+        WHERE is_online = 1 
+        AND verification_status = 'verified'
+    ");
+    $stmt->execute();
+    $result = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $result['online_count'] > 0;
+}
+
+// Function to check if there are drivers available (not occupied with active bookings)
+function checkAvailableDriversWithoutBookings($conn) {
+    $stmt = $conn->prepare("
+        SELECT COUNT(DISTINCT d.driver_id) as available_count
+        FROM rfid_drivers d
+        WHERE d.is_online = 1 
+        AND d.verification_status = 'verified'
+        AND d.driver_id NOT IN (
+            SELECT DISTINCT driver_id 
+            FROM tricycle_bookings 
+            WHERE LOWER(status) IN ('pending', 'accepted', 'in-transit')
+            AND driver_id IS NOT NULL
+        )
+    ");
+    $stmt->execute();
+    $result = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $result['available_count'] > 0;
+}
+
+$driversAvailable = checkAvailableDrivers($conn);
+$driversWithoutBookings = checkAvailableDriversWithoutBookings($conn);
 ?>
 
 <!doctype html>
@@ -254,89 +290,103 @@ $stmt->close();
     
     if (!$hasActiveBooking):
     ?>
-      <section class="form-section">
-        <h3><i class="bi bi-plus-circle-fill"></i> Create New Booking</h3>
-        
-        <form method="post" id="bookingForm" style="margin-bottom: 24px;">
-          <div class="mb-3">
-            <label for="name" class="form-label" style="color: #16a34a; font-weight: 600;">
-              <i class="bi bi-person-fill"></i> Full Name
-            </label>
-            <input type="text" class="form-control" name="name" value="<?= htmlspecialchars($user_name); ?>" required>
-          </div>
-          <div class="mb-3">
-            <label for="location" class="form-label" style="color: #16a34a; font-weight: 600;">
-              <i class="bi bi-geo-alt-fill"></i> Pickup Location
-            </label>
-            <input type="text" class="form-control" name="location" id="location" placeholder="Selected on map..." required>
-          </div>
-          <div class="mb-3">
-            <label for="destination" class="form-label" style="color: #16a34a; font-weight: 600;">
-              <i class="bi bi-flag-fill"></i> Destination
-            </label>
-            <input type="text" class="form-control" name="destination" id="destination" placeholder="Selected on map..." required>
-          </div>
+      <?php if (!$driversAvailable): ?>
+        <div style="background: rgba(220,38,38,0.95); border: 2px solid #dc2626; color: white; padding: 24px; border-radius: 12px; margin-bottom: 32px; font-weight: 600; box-shadow: 0 4px 12px rgba(220,38,38,0.3);">
+          <i class="bi bi-exclamation-triangle-fill" style="font-size: 24px; margin-right: 15px;"></i>
+          <strong>No Drivers Available</strong>
+          <p style="margin-top: 8px; margin-bottom: 0;">Sorry, there are currently no available drivers in Lipa City. Please try again later.</p>
+        </div>
+      <?php elseif (!$driversWithoutBookings): ?>
+        <div style="background: rgba(220,38,38,0.95); border: 2px solid #dc2626; color: white; padding: 24px; border-radius: 12px; margin-bottom: 32px; font-weight: 600; box-shadow: 0 4px 12px rgba(220,38,38,0.3);">
+          <i class="bi bi-exclamation-triangle-fill" style="font-size: 24px; margin-right: 15px;"></i>
+          <strong>All Drivers Busy</strong>
+          <p style="margin-top: 8px; margin-bottom: 0;">All available drivers are currently busy with other bookings. Please try again in a few moments.</p>
+        </div>
+      <?php else: ?>
+        <section class="form-section">
+          <h3><i class="bi bi-plus-circle-fill"></i> Create New Booking</h3>
           
-          <!-- Hidden inputs for coordinates -->
-          <input type="hidden" name="pickup_lat" id="form_pickup_lat">
-          <input type="hidden" name="pickup_lng" id="form_pickup_lng">
-          <input type="hidden" name="dest_lat" id="form_dest_lat">
-          <input type="hidden" name="dest_lng" id="form_dest_lng">
+          <form method="post" id="bookingForm" style="margin-bottom: 24px;">
+            <div class="mb-3">
+              <label for="name" class="form-label" style="color: #16a34a; font-weight: 600;">
+                <i class="bi bi-person-fill"></i> Full Name
+              </label>
+              <input type="text" class="form-control" name="name" value="<?= htmlspecialchars($user_name); ?>" required>
+            </div>
+            <div class="mb-3">
+              <label for="location" class="form-label" style="color: #16a34a; font-weight: 600;">
+                <i class="bi bi-geo-alt-fill"></i> Pickup Location
+              </label>
+              <input type="text" class="form-control" name="location" id="location" placeholder="Selected on map..." required>
+            </div>
+            <div class="mb-3">
+              <label for="destination" class="form-label" style="color: #16a34a; font-weight: 600;">
+                <i class="bi bi-flag-fill"></i> Destination
+              </label>
+              <input type="text" class="form-control" name="destination" id="destination" placeholder="Selected on map..." required>
+            </div>
+            
+            <!-- Hidden inputs for coordinates -->
+            <input type="hidden" name="pickup_lat" id="form_pickup_lat">
+            <input type="hidden" name="pickup_lng" id="form_pickup_lng">
+            <input type="hidden" name="dest_lat" id="form_dest_lat">
+            <input type="hidden" name="dest_lng" id="form_dest_lng">
+            
+            <div class="text-center">
+              <button type="submit" class="btn-book">
+                <i class="bi bi-calendar-check-fill"></i> Book Now
+              </button>
+            </div>
+          </form>
           
-          <div class="text-center">
-            <button type="submit" class="btn-book">
-              <i class="bi bi-calendar-check-fill"></i> Book Now
-            </button>
+          <div class="map-instructions">
+            <i class="bi bi-info-circle-fill"></i>
+            <strong>How to use:</strong> Click on the map twice - first for your pickup location (green marker), then for your destination (red marker). Both locations must be within Lipa City limits.
           </div>
-        </form>
-        
-        <div class="map-instructions">
-          <i class="bi bi-info-circle-fill"></i>
-          <strong>How to use:</strong> Click on the map twice - first for your pickup location (green marker), then for your destination (red marker). Both locations must be within Lipa City limits.
-        </div>
 
-        <div id="map"></div>
+          <div id="map"></div>
 
-        <div class="route-info" id="routeInfo">
-          <h5 style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
-            <i class="bi bi-route"></i> Route Information
-          </h5>
-          <div class="route-stats">
-            <div class="route-stat">
-              <span class="value" id="routeDistance">-</span>
-              <span class="label">Distance</span>
-            </div>
-            <div class="route-stat">
-              <span class="value" id="routeDuration">-</span>
-              <span class="label">Est. Duration</span>
+          <div class="route-info" id="routeInfo">
+            <h5 style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+              <i class="bi bi-route"></i> Route Information
+            </h5>
+            <div class="route-stats">
+              <div class="route-stat">
+                <span class="value" id="routeDistance">-</span>
+                <span class="label">Distance</span>
+              </div>
+              <div class="route-stat">
+                <span class="value" id="routeDuration">-</span>
+                <span class="label">Est. Duration</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <button class="btn-clear" onclick="clearMap()">
-          <i class="bi bi-arrow-clockwise"></i> Clear Map & Start Over
-        </button>
+          <button class="btn-clear" onclick="clearMap()">
+            <i class="bi bi-arrow-clockwise"></i> Clear Map & Start Over
+          </button>
 
-        <div class="location-info">
-          <div class="location-card" id="pickupCard" style="display: none;">
-            <strong>📍 Pickup Location</strong>
-            <div class="coords" id="pickupCoords">Waiting for selection...</div>
-            <input type="hidden" id="pickup_lat" name="pickup_lat">
-            <input type="hidden" id="pickup_lng" name="pickup_lng">
+          <div class="location-info">
+            <div class="location-card" id="pickupCard" style="display: none;">
+              <strong>📍 Pickup Location</strong>
+              <div class="coords" id="pickupCoords">Waiting for selection...</div>
+              <input type="hidden" id="pickup_lat" name="pickup_lat">
+              <input type="hidden" id="pickup_lng" name="pickup_lng">
+            </div>
+
+            <div class="location-card" id="destCard" style="display: none;">
+              <strong>🏁 Destination</strong>
+              <div class="coords" id="destCoords">Waiting for selection...</div>
+              <input type="hidden" id="dest_lat" name="dest_lat">
+              <input type="hidden" id="dest_lng" name="dest_lng">
+            </div>
           </div>
 
-          <div class="location-card" id="destCard" style="display: none;">
-            <strong>🏁 Destination</strong>
-            <div class="coords" id="destCoords">Waiting for selection...</div>
-            <input type="hidden" id="dest_lat" name="dest_lat">
-            <input type="hidden" id="dest_lng" name="dest_lng">
-          </div>
-        </div>
-
-        <button class="btn-clear" onclick="clearMap()">
-          <i class="bi bi-arrow-clockwise"></i> Clear Map & Start Over
-        </button>
-      </section>
+          <button class="btn-clear" onclick="clearMap()">
+            <i class="bi bi-arrow-clockwise"></i> Clear Map & Start Over
+          </button>
+        </section>
+      <?php endif; ?>
     <?php else: ?>
       <div style="background: rgba(245,158,11,0.95); border: 2px solid #f59e0b; color: white; padding: 24px; border-radius: 12px; margin-bottom: 32px; font-weight: 600; box-shadow: 0 4px 12px rgba(245,158,11,0.3);">
         <i class="bi bi-exclamation-triangle-fill" style="font-size: 24px; margin-right: 15px;"></i>

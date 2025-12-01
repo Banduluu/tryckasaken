@@ -24,6 +24,21 @@ SET time_zone = "+00:00";
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `admin_action_logs`
+--
+
+CREATE TABLE `admin_action_logs` (
+  `log_id` int(11) NOT NULL,
+  `admin_id` int(11) NOT NULL,
+  `action_type` varchar(50) NOT NULL,
+  `target_user_id` int(11) DEFAULT NULL,
+  `action_details` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `driver_attendance`
 --
 
@@ -90,6 +105,9 @@ CREATE TABLE `rfid_drivers` (
   `verification_status` enum('pending','verified','rejected') DEFAULT 'pending',
   `is_online` tinyint(1) DEFAULT 0,
   `rfid_uid` varchar(255) DEFAULT NULL,
+  `card_status` enum('active','blocked','lost','stolen') DEFAULT 'active',
+  `card_blocked_at` timestamp NULL DEFAULT NULL,
+  `card_blocked_reason` text DEFAULT NULL,
   `last_attendance` timestamp NULL DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -158,6 +176,16 @@ INSERT INTO `users` (`user_id`, `user_type`, `name`, `email`, `phone`, `password
 --
 
 --
+-- Indexes for table `admin_action_logs`
+--
+ALTER TABLE `admin_action_logs`
+  ADD PRIMARY KEY (`log_id`),
+  ADD KEY `idx_admin_id` (`admin_id`),
+  ADD KEY `idx_action_type` (`action_type`),
+  ADD KEY `idx_created_at` (`created_at`),
+  ADD KEY `fk_log_target_user` (`target_user_id`);
+
+--
 -- Indexes for table `driver_attendance`
 --
 ALTER TABLE `driver_attendance`
@@ -218,6 +246,12 @@ ALTER TABLE `users`
 --
 
 --
+-- AUTO_INCREMENT for table `admin_action_logs`
+--
+ALTER TABLE `admin_action_logs`
+  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `driver_attendance`
 --
 ALTER TABLE `driver_attendance`
@@ -258,6 +292,13 @@ ALTER TABLE `users`
 --
 
 --
+-- Constraints for table `admin_action_logs`
+--
+ALTER TABLE `admin_action_logs`
+  ADD CONSTRAINT `fk_log_admin` FOREIGN KEY (`admin_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_log_target_user` FOREIGN KEY (`target_user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL;
+
+--
 -- Constraints for table `driver_attendance`
 --
 ALTER TABLE `driver_attendance`
@@ -275,6 +316,12 @@ ALTER TABLE `driver_reports`
 --
 ALTER TABLE `rfid_drivers`
   ADD CONSTRAINT `fk_driver_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
+
+--
+-- Indexes for table `rfid_drivers`
+--
+ALTER TABLE `rfid_drivers`
+  ADD KEY `idx_card_status` (`card_status`);
 
 --
 -- Constraints for table `tricycle_bookings`

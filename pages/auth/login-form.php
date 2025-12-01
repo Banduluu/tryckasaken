@@ -142,7 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
               </div>
 
               <button type="submit" class="submit-btn">
-                <i class="bi bi-box-arrow-in-right me-2"></i> Sign In as Passenger
+                <i class="bi bi-box-arrow-in-right me-2"></i> Sign In
               </button>
             </form>
           </div>

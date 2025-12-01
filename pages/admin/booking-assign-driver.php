@@ -62,12 +62,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['driver_id'])) {
     $verify_stmt->close();
     
     if ($driver_exists) {
+        // Get driver name for logging
+        $driverNameStmt = $conn->prepare("SELECT u.name FROM users u WHERE u.user_id = (SELECT user_id FROM rfid_drivers WHERE driver_id = ?)");
+        $driverNameStmt->bind_param("i", $driver_id);
+        $driverNameStmt->execute();
+        $driverNameResult = $driverNameStmt->get_result();
+        $driverName = $driverNameResult->num_rows > 0 ? $driverNameResult->fetch_assoc()['name'] : 'Unknown';
+        $driverNameStmt->close();
+        
         // Update booking with driver assignment
         $update_stmt = $conn->prepare("UPDATE tricycle_bookings SET driver_id = ?, status = 'accepted' WHERE id = ?");
         $update_stmt->bind_param("ii", $driver_id, $booking_id);
         
         if ($update_stmt->execute()) {
             $update_stmt->close();
+            
+            // Log to admin_action_logs
+            $adminId = $_SESSION['user_id'];
+            $actionType = 'booking_assign_driver';
+            $actionDetails = "Assigned driver {$driverName} (ID: {$driver_id}) to booking #{$booking_id}. Route: {$booking['location']} → {$booking['destination']}. Passenger: {$booking['passenger_name']}";
+            
+            $logStmt = $conn->prepare("INSERT INTO admin_action_logs (admin_id, action_type, target_user_id, action_details) VALUES (?, ?, NULL, ?)");
+            $logStmt->bind_param("iss", $adminId, $actionType, $actionDetails);
+            $logStmt->execute();
+            $logStmt->close();
+            
             $database->closeConnection();
             header("Location: bookings-list.php?success=Driver assigned successfully");
             exit();

@@ -1,8 +1,5 @@
 <?php
 
-// Setup database silently
-// setupDatabase();
-
 // Configure page variables
 $pageTitle = 'TrycKaSaken - Tricycle Booking System';
 $cssFiles = ['public/css/style.css', 'public/css/landing.css'];

@@ -56,8 +56,10 @@ const int   daylightOffset_sec = 0;
 
 // ================== SERVER API ENDPOINT ==================
 // IMPORTANT: CHANGE THIS TO YOUR SERVER URL
-const char* serverURL = "http://192.168.1.100/tryckasaken/pages/driver/rfid-attendance-handler.php";
-// Replace 192.168.1.100 with your actual server IP address
+const char* serverURL = "http://192.168.1.20/finals/pages/driver/rfid-attendance-handler.php";
+// Your current server IP address: 192.168.1.20
+
+const char* learningStatusURL = "http://192.168.1.20/finals/pages/driver/rfid-learning-handler.php?action=status";
 
 // ================== WiFi NETWORKS ==================
 struct WiFiNetwork {
@@ -67,26 +69,14 @@ struct WiFiNetwork {
 
 WiFiNetwork networks[] = {
   {"KAY DIDAY ITO", "Did@ylangsakalam01"},
-  {"Jerick", "onetwo82"},
-  {"Vincent's Iphone", "123456789"},
-  {"Bluetooth", "onetoeight"},
-  {"JC", "12345678"},
+  // {"Jerick", "onetwo82"},
+  // {"LAB1", "PLDTWIFIVUu8M@"},
+  // {"Vincent's Iphone", "12345678"},
+  // {"Bluetooth", "onetoeight"},
+  // {"Jc", "1234567890"}
 };
 
 int totalNetworks = sizeof(networks) / sizeof(networks[0]);
-
-// ================== LOCAL CARD DATABASE (FALLBACK) ==================
-struct Card {
-  const char* uid;
-  const char* name;
-  int tapCount;  // 0 = ready for first tap, 1 = ready for second tap
-};
-
-Card cards[] = {
-  {"E317A32A", "Jc jade Nealega", 0}
-};
-
-int totalCards = sizeof(cards) / sizeof(cards[0]);
 
 // ================== CENTERED TEXT HELPER ==================
 void drawCenteredText(String text, int y, int size) {
@@ -181,16 +171,8 @@ void syncedBlinkBeep(int ledPin, int times, int duration) {
   }
 }
 
-// ================== FIND CARD IN LOCAL DATABASE ==================
-int getCardIndex(String uid) {
-  for (int i = 0; i < totalCards; i++) {
-    if (uid.equals(cards[i].uid)) return i;
-  }
-  return -1;
-}
-
 // ================== SEND RFID DATA TO SERVER ==================
-bool sendToServer(String uid, String action, String &serverMessage) {
+bool sendToServer(String uid, String action, String &serverMessage, String &actualAction, String &driverName) {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("WiFi not connected!");
     serverMessage = "No WiFi";
@@ -228,6 +210,13 @@ bool sendToServer(String uid, String action, String &serverMessage) {
 
     if (!error) {
       serverMessage = responseDoc["message"].as<String>();
+      actualAction = responseDoc["action"].as<String>();
+      
+      // Get driver name from response
+      if (responseDoc.containsKey("driver")) {
+        driverName = responseDoc["driver"]["name"].as<String>();
+      }
+      
       return responseDoc["success"];
     } else {
       serverMessage = "Parse Error";
@@ -236,6 +225,34 @@ bool sendToServer(String uid, String action, String &serverMessage) {
   } else {
     Serial.println("Error sending data: " + String(httpResponseCode));
     serverMessage = "Connection Failed";
+  }
+
+  http.end();
+  return false;
+}
+
+// ================== CHECK LEARNING MODE STATUS ==================
+bool isLearningModeActive() {
+  if (WiFi.status() != WL_CONNECTED) {
+    return false;
+  }
+
+  HTTPClient http;
+  http.begin(learningStatusURL);
+  http.setTimeout(3000);
+
+  int httpResponseCode = http.GET();
+
+  if (httpResponseCode > 0) {
+    String response = http.getString();
+    http.end();
+
+    StaticJsonDocument<256> responseDoc;
+    DeserializationError error = deserializeJson(responseDoc, response);
+
+    if (!error && responseDoc["success"]) {
+      return responseDoc["enabled"].as<bool>();
+    }
   }
 
   http.end();
@@ -300,77 +317,118 @@ void loop() {
     Serial.println("\n=== Card Detected ===");
     Serial.println("UID: " + uid);
 
-    int cardIndex = getCardIndex(uid);
+    // Show processing
     display.clear();
+    drawCenteredText("Processing...", 20, 2);
+    display.display();
 
-    if (cardIndex != -1) {
-      Card &driver = cards[cardIndex];
+    // Always query server to check card and determine action
+    // The server will handle tap count logic and return appropriate response
+    String serverMessage = "";
+    String actualAction = "";
+    String driverName = "";
+    
+    // Send request, server will determine correct action based on driver's current status
+    bool serverSuccess = sendToServer(uid, "online", serverMessage, actualAction, driverName);
 
-      // Determine action based on tap count
-      // First tap (tapCount = 0): send "online" action
-      // Second tap (tapCount = 1): send "offline" action
-      String action = (driver.tapCount == 0) ? "online" : "offline";
-      
-      // Show processing
+    if (serverSuccess) {
+      // Card recognized by server
+      // Blink LED based on action: 1 blink for online, 2 blinks for offline
+      int blinkCount = (actualAction == "online") ? 1 : 2;
+      syncedBlinkBeep(GREEN_LED, blinkCount, 150);
+
+      struct tm timeinfo;
+      getLocalTime(&timeinfo);
+
+      char buffer[30];
+      strftime(buffer, sizeof(buffer), "%b %d, %Y %I:%M:%S %p", &timeinfo);
+
+      String status = (actualAction == "online") ? "Going Online" : "Going Offline";
+
       display.clear();
-      drawCenteredText("Processing...", 20, 2);
+      display.setFont(ArialMT_Plain_10);
+      display.drawString(0, 0, driverName);
+      display.drawString(0, 16, status);
+      display.drawString(0, 32, buffer);
+      display.drawString(0, 48, "UID: " + uid);
       display.display();
 
-      // Send to server
-      String serverMessage = "";
-      bool serverSuccess = sendToServer(uid, action, serverMessage);
+      Serial.println("SUCCESS: " + driverName + " - " + status);
 
-      if (serverSuccess) {
-        // Update tap count for next tap
-        driver.tapCount = (driver.tapCount == 0) ? 1 : 0;
+    } else {
+      // Unknown card or server error
+      display.clear();
+      display.setFont(ArialMT_Plain_10);
+      
+      if (serverMessage == "Unknown card") {
+        // Check if learning mode is active
+        bool learningMode = isLearningModeActive();
         
-        String status = (action == "online") ? "Going Online" : "Going Offline";
-        syncedBlinkBeep(GREEN_LED, (action == "online") ? 1 : 2, 150);
-
-        struct tm timeinfo;
-        getLocalTime(&timeinfo);
-
-        char buffer[30];
-        strftime(buffer, sizeof(buffer), "%b %d, %Y %I:%M:%S %p", &timeinfo);
-
-        display.clear();
-        display.setFont(ArialMT_Plain_10);
-        display.drawString(0, 0, String(driver.name));
-        display.drawString(0, 16, "Status: " + status);
-        display.drawString(0, 32, buffer);
-        display.drawString(0, 48, "Server: " + serverMessage);
-        display.display();
-
-        Serial.println("SUCCESS: " + serverMessage);
-
+        if (learningMode) {
+          // Learning mode is ACTIVE - show detection message
+          drawCenteredText("LEARNING MODE", 0, 1);
+          display.drawString(0, 16, "New Card Detected!");
+          display.drawString(0, 32, "UID: " + uid);
+          display.drawString(0, 48, "Register in Admin");
+          
+          // Flash both LEDs alternately for learning mode
+          for (int i = 0; i < 3; i++) {
+            digitalWrite(GREEN_LED, HIGH);
+            digitalWrite(BUZZER, LOW);
+            delay(100);
+            digitalWrite(GREEN_LED, LOW);
+            digitalWrite(BUZZER, HIGH);
+            delay(100);
+            digitalWrite(RED_LED, HIGH);
+            digitalWrite(BUZZER, LOW);
+            delay(100);
+            digitalWrite(RED_LED, LOW);
+            digitalWrite(BUZZER, HIGH);
+            delay(100);
+          }
+          
+          Serial.println("LEARNING MODE: New card detected - " + uid);
+        } else {
+          // Learning mode is OFF - reject unknown card
+          display.clear();
+          display.setFont(ArialMT_Plain_16);
+          drawCenteredText("ACCESS DENIED", 0, 2);
+          
+          display.setFont(ArialMT_Plain_10);
+          
+          // Check if card is blocked/stolen/lost
+          if (serverMessage.indexOf("stolen") >= 0 || 
+              serverMessage.indexOf("lost") >= 0 || 
+              serverMessage.indexOf("blocked") >= 0) {
+            // Blocked card - show specific message
+            display.drawString(0, 24, "CARD BLOCKED");
+            display.drawString(0, 36, "UID: " + uid);
+            display.drawString(0, 48, "Contact Admin");
+            
+            // More urgent feedback for blocked cards
+            syncedBlinkBeep(RED_LED, 5, 100);
+            Serial.println("BLOCKED: " + serverMessage + " - " + uid);
+          } else {
+            // Unknown card
+            display.drawString(0, 24, "Unknown Card");
+            display.drawString(0, 36, "UID: " + uid);
+            display.drawString(0, 48, "Not Registered");
+            
+            // Standard error feedback - red blinks
+            syncedBlinkBeep(RED_LED, 3, 150);
+            Serial.println("REJECTED: Unknown card - " + uid);
+          }
+        }
       } else {
-        // Server failed - don't update tap count
-        display.clear();
-        display.setFont(ArialMT_Plain_10);
         display.drawString(0, 0, "Server Error");
         display.drawString(0, 16, serverMessage);
         display.drawString(0, 32, "UID: " + uid);
         display.drawString(0, 48, "Check Connection");
-        display.display();
-
-        syncedBlinkBeep(RED_LED, 3, 150);
-        
+        syncedBlinkBeep(RED_LED, 2, 150);
         Serial.println("FAILED: " + serverMessage);
       }
-
-    } else {
-      // Unknown card
-      display.clear();
-      display.setFont(ArialMT_Plain_10);
-      display.drawString(0, 0, "Unknown Card");
-      display.drawString(0, 16, "Access Denied");
-      display.drawString(0, 32, "UID: " + uid);
-      display.drawString(0, 48, "Not Registered");
-      display.display();
-
-      syncedBlinkBeep(RED_LED, 2, 150);
       
-      Serial.println("Unknown card: " + uid);
+      display.display();
     }
 
     delay(3000);
@@ -390,11 +448,35 @@ void displayIdleScreen() {
     char buffer[15];
     strftime(buffer, sizeof(buffer), "%H:%M:%S", &timeinfo);
 
-    drawCenteredText("Tryckasaken", 0, 2);
-    drawCenteredText("Tap Driver Card", 24, 1);
-    drawCenteredText(buffer, 40, 2);
+    // Check learning mode status (check every 10 seconds to avoid too many requests)
+    static unsigned long lastLearningCheck = 0;
+    static bool learningModeActive = false;
+    unsigned long currentMillis = millis();
+    
+    if (currentMillis - lastLearningCheck > 10000) {
+      learningModeActive = isLearningModeActive();
+      lastLearningCheck = currentMillis;
+    }
 
-    // WiFi Signal Bars
+    if (learningModeActive) {
+      // Show LEARNING MODE indicator
+      drawCenteredText("LEARNING MODE", 0, 1);
+      drawCenteredText("Ready to Detect", 12, 1);
+      drawCenteredText("New Cards", 24, 1);
+      drawCenteredText(buffer, 44, 2);
+      
+      // Blinking indicator
+      if ((millis() / 500) % 2 == 0) {
+        display.fillCircle(120, 4, 3);  // Blinking dot in top right
+      }
+    } else {
+      // Normal idle screen
+      drawCenteredText("Tryckasaken", 0, 2);
+      drawCenteredText("Tap Driver Card", 24, 1);
+      drawCenteredText(buffer, 40, 2);
+    }
+
+    // WiFi Signal Bars (always show at bottom)
     if (WiFi.status() == WL_CONNECTED) {
       int rssi = WiFi.RSSI();
       int bars = 0;

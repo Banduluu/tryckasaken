@@ -48,9 +48,17 @@ $updateStmt = $conn->prepare("UPDATE drivers SET verification_status = ? WHERE d
 $updateStmt->bind_param("si", $newStatus, $driverId);
 
 if ($updateStmt->execute()) {
-    // Log the action (could be expanded to a separate audit log table)
-    $logMessage = "Driver #{$driverId} ({$driver['name']}) verification status changed to: {$newStatus}";
-    error_log($logMessage);
+    $updateStmt->close();
+    
+    // Log to admin_action_logs
+    $adminId = $_SESSION['user_id'];
+    $actionType = $action === 'approve' ? 'driver_verify' : 'driver_reject';
+    $actionDetails = "Driver verification {$newStatus}: {$driver['name']} (ID: {$driverId}, Email: {$driver['email']})";
+    
+    $logStmt = $conn->prepare("INSERT INTO admin_action_logs (admin_id, action_type, target_user_id, action_details) VALUES (?, ?, ?, ?)");
+    $logStmt->bind_param("isis", $adminId, $actionType, $driver['user_id'], $actionDetails);
+    $logStmt->execute();
+    $logStmt->close();
     
     header("Location: drivers-verification.php?success=" . urlencode($message) . "&type=" . $messageType);
 } else {
